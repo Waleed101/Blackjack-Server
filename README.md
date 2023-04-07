@@ -35,7 +35,7 @@ docker exec -it 3313-project /bin/bash
 
 5. Open VSCode; install `Microsoft Remote - SSH`
 6. Hit `Ctrl+Shift+P` and type in `Connect to Host`. Select the first option.
-7. Type in `student@localhost:2000`
+7. Type in `student@localhost:2200`
 8. Click create a new host
 9. Click `localhost`
 10. Type in `password` for the password
