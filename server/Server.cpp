@@ -11,8 +11,10 @@
 using namespace Sync;
 
 SocketServer * server;
+
 Json::Value gameState;
 Json::Value players;
+
 int numberOfPlayers = 0;
 
 class PlayerReader : public Thread{
@@ -37,6 +39,7 @@ class PlayerReader : public Thread{
 			while(true)
 			{
 				broadcast.Wait();
+				std::cout << "Writing to socket..." << std::endl;
 				ByteArray responseBuffer(gameState.asString());
 				socket.Write(responseBuffer);
 			}		
@@ -74,6 +77,9 @@ class PlayerWriter : public Thread{
 class DealerThread : public Thread{
 	private:
 		int TIME_BETWEEN_REFRESHES = 5000;
+		std::vector<std::string> cards; 
+		int currentState = 0;
+		bool hasDelt = false;
 
 	public:
 		DealerThread():Thread(1000){
@@ -83,30 +89,69 @@ class DealerThread : public Thread{
 		virtual long ThreadMain(void) override{
 			
 			Semaphore broadcast("broadcast", 0, true);
+			Semaphore mutex("mutex");
 			
 			while(true)
 			{
+				if (!hasDelt && currentState == 1) {
+					hasDelt = true;
+					cards.clear();
+					cards.push_back("1");
+					cards.push_back("2");
+				}
+
+				mutex.Wait();
+
+				// make modifications to the game state
+
+				mutex.Signal();
+
 				for(int i = 0; i < numberOfPlayers; i++) {
 					broadcast.Signal();
 				}
+				
 				sleep(TIME_BETWEEN_REFRESHES);
 			}
 		}
 };
 
-void setGameState(int state, int timeRemaining) {
+void setGameState(int state, int timeRemaining, int turnID) {
 	std::string statusOptions[3] = {"BETTING", "PLAYING", "CLOSE"};
+
 	gameState["status"] = statusOptions[state];
 	gameState["timeRemaining"] = timeRemaining;
 	gameState["players"] = players;
+
+	gameState["currentPlayerTurn"] = std::to_string(turnID);
 }
 
-// // this can be used to add or change a player
-// void updatePlayer(int playerID, )
+Json::Value from(std::vector<std::string> arr) {
+	Json::Value convertedArr(Json::arrayValue);
+
+	for(std::string inst : arr) {
+		convertedArr.append(inst);
+	}
+
+	return convertedArr;
+}
+
+bool isBusted(std::string * cards) {
+	int total = 0;
+
+	for(int i = 0; i < sizeof(cards); i++) {
+		total += stoi(cards[i]);
+
+		if (total > 21) {
+			return false;
+		}
+	}
+
+	return true;
+}
 
 int main(void)
 {
-    std::cout << "-----Server-----" << std::endl;
+    std::cout << "-----C++ Server-----" << std::endl;
  
     int port = 2008;
 
@@ -116,7 +161,7 @@ int main(void)
 
     server = new SocketServer(port);
 
-	setGameState(1, 10);
+	setGameState(1, 10, 1);
     
 	std::cout << "Socket listening on " << port << std::endl;
    
