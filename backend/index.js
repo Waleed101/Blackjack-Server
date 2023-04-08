@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import net from 'net';
 
-const SERVER_PORT = 2008;
+const SERVER_PORT = 2030;
 
 const sockets = {}
 
