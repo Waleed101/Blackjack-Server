@@ -15,6 +15,7 @@ SocketServer * server;
 Json::Value gameState(Json::objectValue);
 
 int numberOfPlayers = 0;
+int playerID = 0;
 
 struct Card {
     std::string suit;
@@ -41,7 +42,7 @@ Card getRandomCard() {
 	Card card;
 	
 	std::string suits[] = {"D", "H", "S", "C"};
-	card.suit = suits[randomNum(0, 4)];
+	card.suit = suits[randomNum(0, 3)];
 	card.num = randomNum(1, 13);
 
 	return card;
@@ -138,8 +139,6 @@ class DealerThread : public Thread{
 
 		void addPlayer(Player newPlayer) {
 			players.push_back(newPlayer);
-
-			std::cout << "Added new player..." << std::endl;
 		}
 
 		void removePlayer(int idToRemove) {
@@ -149,6 +148,10 @@ class DealerThread : public Thread{
 					break;
 				}
 			}
+
+			numberOfPlayers--;
+
+			std::cout << "Removing player " << std::to_string(idToRemove) << std::endl;
 		}
 		
 		virtual long ThreadMain(void) override{
@@ -165,13 +168,16 @@ class DealerThread : public Thread{
 
 				timeRemaining -= TIME_BETWEEN_REFRESHES;
 
+				mutex.Wait();
+
 				if (timeRemaining <= 0) {
 					if (currentState == 0) {
 						currentState = 1;
+
 						cards = getCards(2);
 
-						for (Player player : players) {
-							player.cards = getCards(2);
+						for (int i = 0; i < players.size(); i++) {
+							players[i].cards = getCards(2);
 						}
 
 						currentSeatPlaying = 0;
@@ -187,16 +193,12 @@ class DealerThread : public Thread{
 					timeRemaining = 10;
 				}
 
-				mutex.Wait();
-
 				gameState["dealerCards"] = from(cards);
 				gameState["hasDealerBusted"] = isBusted(cards);
 				gameState["state"] = currentState;
 				gameState["timeRemaining"] = timeRemaining;
 				gameState["turnID"] = currentSeatPlaying;
 				gameState["players"] = from(players);
-
-				// make modifications to the game state
 
 				mutex.Signal();
 
@@ -259,7 +261,13 @@ class PlayerWriter : public Thread{
 			
 			while(true)
 			{
-				sleep(5);
+				ByteArray * buffer = new ByteArray();
+				if (socket.Read(*buffer) == 0) {
+					std::cout << "Player-" << std::to_string(data.id) << " left the game." << std::endl;
+					dealer.removePlayer(data.id);
+					break;
+				}
+
 				// mutex.Wait();
 				
 				// // Modify the gameState has needed
@@ -273,7 +281,7 @@ int main(void)
 {
     std::cout << "-----C++ Server-----" << std::endl;
  
-    int port = 2030;
+    int port = 2038;
 
 	DealerThread * dealer = new DealerThread();
     
@@ -287,8 +295,8 @@ int main(void)
     	try {	
  			Socket sock = server->Accept();
 			std::cout << "Got a new player" << std::endl;
-			PlayerReader * reader = new PlayerReader(sock, numberOfPlayers++);
-			PlayerWriter * writer = new PlayerWriter(sock, numberOfPlayers, *dealer);
+			PlayerReader * reader = new PlayerReader(sock, playerID++);
+			PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
 			dealer->addPlayer(writer->data);			
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {
