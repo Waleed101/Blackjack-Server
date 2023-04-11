@@ -3,7 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
-const SERVER_PORT = 2040;
+const SERVER_PORT = 2042;
 
 const sockets = {}
 
@@ -61,7 +61,7 @@ app.get("/connect", (req, res) => {
 
 app.get('/update/:id', (req, res) => {
     console.log(`Client-${req.params.id} requested an update`)
-    res.send(sockets[req.params.id])
+    res.send(sockets[req.params.id].data)
 });
 
 app.post('/action/:id', (req, res) => {

@@ -69,18 +69,18 @@ Json::Value from(std::vector<Card> arr) {
 	return convertedArr;
 }
 
-
-bool isBusted(std::vector<Card> cards) {
+int cardSum(std::vector<Card> cards) {
 	int total = 0;
 
 	for(Card card : cards) {
 		total += std::min(card.num, 10);
-
-		if (total > 21)
-			return true;
 	}
 
-	return false;
+	return total;
+}
+
+bool isBusted(std::vector<Card> cards) {
+	return cardSum(cards) > 21;
 }
 
 struct Player {
@@ -106,6 +106,7 @@ struct Player {
 		converted["cards"] = from(cards);
 		converted["balance"] = balance;
 		converted["isActive"] = isActive;
+		converted["cardSum"] = cardSum(cards);
 		converted["isBusted"] = isBusted(cards);
 
 		return converted;
@@ -116,7 +117,7 @@ struct Player {
 Json::Value from(std::vector<Player> arr) {
 	Json::Value convertedArr(Json::objectValue);
 
-	for(Player inst : arr) {
+	for(Player & inst : arr) {
 		convertedArr[std::to_string(inst.id)] = inst.toJson(); 
 	}
 
@@ -132,14 +133,18 @@ class DealerThread : public Thread{
 
 		int currentState = 0;
 
+		
+
+		int timeRemaining = 10;
+		int currentSeatPlaying = 0;
+
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(5){
 
 		}
 
-		void addPlayer(Player newPlayer) {
+		void addPlayer(Player & newPlayer) {
 			Semaphore mutex("mutex");
-
 			mutex.Wait();
 			players.push_back(newPlayer);
 			mutex.Signal();
@@ -161,14 +166,15 @@ class DealerThread : public Thread{
 
 			std::cout << "Removing player " << std::to_string(idToRemove) << std::endl;
 		}
-		
+
+		void incrementNextPlayer() {
+			currentSeatPlaying++;
+		}
+
 		virtual long ThreadMain(void) override{
-			
 			Semaphore broadcast("broadcast", 0, true);
 			Semaphore mutex("mutex");
-
-			int timeRemaining = 10;
-			int currentSeatPlaying = 0;
+			
 			
 			while(true)
 			{
@@ -190,7 +196,7 @@ class DealerThread : public Thread{
 
 						currentSeatPlaying = 0;
 					} else {
-						if (currentSeatPlaying == (numberOfPlayers - 1)) {
+						if (currentSeatPlaying == numberOfPlayers) {
 							currentSeatPlaying = 0;
 							currentState = 0;
 							cards = {};
@@ -206,6 +212,9 @@ class DealerThread : public Thread{
 				gameState["state"] = currentState;
 				gameState["timeRemaining"] = timeRemaining;
 				gameState["turnID"] = currentSeatPlaying;
+				gameState["cardSum"] = cardSum(cards);
+				if (players.size() > 0)
+					std::cout << players[0].bet << std::endl;
 				gameState["players"] = from(players);
 
 				mutex.Signal();
@@ -282,15 +291,27 @@ class PlayerWriter : public Thread{
 				
 				// // Modify the gameState has needed
 
-				std::string data = (* buffer).ToString();
-
+				std::string req = (* buffer).ToString();
 				Json::Value playerAction(Json::objectValue);
-
 				Json::Reader reader;
+				reader.parse(req, playerAction);
 
-				reader.parse(data, playerAction);
+				if (playerAction["type"].asString() == "TURN") {
+					std::string action = playerAction["action"].asString();
+
+					if (action == "HIT") {
+						data.cards.push_back(getRandomCard());
+						if (cardSum(data.cards) >= 21)
+							dealer.incrementNextPlayer();
+					} else {
+						dealer.incrementNextPlayer();
+					}
+				} else {
+					data.bet = playerAction["betAmount"].asInt();
+				}
 
 				std::cout << playerAction.toStyledString() << std::endl;
+				std::cout << data.bet << std::endl;
 				mutex.Signal();
 			}		
 		}
@@ -300,11 +321,7 @@ int main(void)
 {
     std::cout << "-----C++ Server-----" << std::endl;
  
-<<<<<<< HEAD
-    int port = 2040;
-=======
-    int port = 2041;
->>>>>>> 2ffaf5b1e9e5b75b215718ebdaf39695ac1b93fd
+    int port = 2042;
 
 	DealerThread * dealer = new DealerThread();
     
