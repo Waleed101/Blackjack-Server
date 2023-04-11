@@ -70,6 +70,19 @@ Json::Value from(std::vector<Card> arr) {
 }
 
 
+bool isBusted(std::vector<Card> cards) {
+	int total = 0;
+
+	for(Card card : cards) {
+		total += std::min(card.num, 10);
+
+		if (total > 21)
+			return true;
+	}
+
+	return false;
+}
+
 struct Player {
     int id;
     int seat;
@@ -93,7 +106,7 @@ struct Player {
 		converted["cards"] = from(cards);
 		converted["balance"] = balance;
 		converted["isActive"] = isActive;
-		converted["hasWon"] = hasWon;
+		converted["isBusted"] = isBusted(cards);
 
 		return converted;
 	}
@@ -108,19 +121,6 @@ Json::Value from(std::vector<Player> arr) {
 	}
 
 	return convertedArr;
-}
-
-bool isBusted(std::vector<Card> cards) {
-	int total = 0;
-
-	for(Card card : cards) {
-		total += std::min(card.num, 10);
-
-		if (total > 21)
-			return false;
-	}
-
-	return true;
 }
 
 class DealerThread : public Thread{
@@ -138,16 +138,24 @@ class DealerThread : public Thread{
 		}
 
 		void addPlayer(Player newPlayer) {
+			Semaphore mutex("mutex");
+
+			mutex.Wait();
 			players.push_back(newPlayer);
+			mutex.Signal();
 		}
 
 		void removePlayer(int idToRemove) {
+			Semaphore mutex("mutex");
+
+			mutex.Wait();
 			for (auto it = players.begin(); it != players.end(); ++it) {
 				if (it->id == idToRemove) {
 					players.erase(it);
 					break;
 				}
 			}
+			mutex.Signal();
 
 			numberOfPlayers--;
 
@@ -226,7 +234,7 @@ class PlayerReader : public Thread{
 			
 			Semaphore broadcast("broadcast");
 
-			ByteArray responseBuffer(gameState.toStyledString());
+			ByteArray responseBuffer(std::to_string(1));
 			socket.Write(responseBuffer);
 			
 			while(true)
@@ -259,6 +267,8 @@ class PlayerWriter : public Thread{
 			
 			Semaphore mutex("mutex");
 			
+			dealer.addPlayer(data);			
+
 			while(true)
 			{
 				ByteArray * buffer = new ByteArray();
@@ -268,11 +278,14 @@ class PlayerWriter : public Thread{
 					break;
 				}
 
-				// mutex.Wait();
+				mutex.Wait();
 				
 				// // Modify the gameState has needed
 
-				// mutex.Signal();
+				std::string data = (* buffer).ToString();
+
+				std::cout << data << std::endl;
+				mutex.Signal();
 			}		
 		}
 };
@@ -281,7 +294,7 @@ int main(void)
 {
     std::cout << "-----C++ Server-----" << std::endl;
  
-    int port = 2038;
+    int port = 2039;
 
 	DealerThread * dealer = new DealerThread();
     
@@ -297,7 +310,6 @@ int main(void)
 			std::cout << "Got a new player" << std::endl;
 			PlayerReader * reader = new PlayerReader(sock, playerID++);
 			PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
-			dealer->addPlayer(writer->data);			
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {
     			std::cout << "Server is terminated" << std::endl;

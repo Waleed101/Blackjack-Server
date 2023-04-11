@@ -33,7 +33,7 @@ function Game() {
   const hiddenScore = cloneDeck;
 
   // connection to the backend
-  const [playerID, setPlayerID] = useState(0);
+  const [playerID, setPlayerID] = useState(-1);
 
   // define a winner
   const [winner, setWinner] = useState<"dealer" | "you" | "tie" | "">("");
@@ -174,7 +174,8 @@ function Game() {
   }
 
   useEffect(() => {
-    initialConnection()
+    if (playerID == -1)
+      initialConnection()
   }, []);
 
   return (

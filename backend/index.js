@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import net from 'net';
 
-const SERVER_PORT = 2038;
+const SERVER_PORT = 2039;
 
 const sockets = {}
 
@@ -72,6 +72,7 @@ function manageSocket(sock, id) {
     
     sock.on('data', (data) => {
         sockets[id].data = data
+        console.log(data)
     })
 
     sock.on('close', () => {
