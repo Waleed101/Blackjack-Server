@@ -284,7 +284,13 @@ class PlayerWriter : public Thread{
 
 				std::string data = (* buffer).ToString();
 
-				std::cout << data << std::endl;
+				Json::Value playerAction(Json::objectValue);
+
+				Json::Reader reader;
+
+				reader.parse(data, playerAction);
+
+				std::cout << playerAction.toStyledString() << std::endl;
 				mutex.Signal();
 			}		
 		}
@@ -294,7 +300,7 @@ int main(void)
 {
     std::cout << "-----C++ Server-----" << std::endl;
  
-    int port = 2039;
+    int port = 2040;
 
 	DealerThread * dealer = new DealerThread();
     
