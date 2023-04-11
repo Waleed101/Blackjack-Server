@@ -174,8 +174,9 @@ function Game() {
   }
 
   useEffect(() => {
-    if (playerID == -1)
+    if (playerID == -1) {
       initialConnection()
+    }
   }, []);
 
   return (

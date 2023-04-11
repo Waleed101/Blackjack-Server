@@ -234,7 +234,7 @@ class PlayerReader : public Thread{
 			
 			Semaphore broadcast("broadcast");
 
-			ByteArray responseBuffer(std::to_string(1));
+			ByteArray responseBuffer(std::to_string(this->playerID));
 			socket.Write(responseBuffer);
 			
 			while(true)
@@ -300,7 +300,11 @@ int main(void)
 {
     std::cout << "-----C++ Server-----" << std::endl;
  
+<<<<<<< HEAD
     int port = 2040;
+=======
+    int port = 2041;
+>>>>>>> 2ffaf5b1e9e5b75b215718ebdaf39695ac1b93fd
 
 	DealerThread * dealer = new DealerThread();
     
@@ -314,7 +318,9 @@ int main(void)
     	try {	
  			Socket sock = server->Accept();
 			std::cout << "Got a new player" << std::endl;
-			PlayerReader * reader = new PlayerReader(sock, playerID++);
+			playerID++;
+			numberOfPlayers++;
+			PlayerReader * reader = new PlayerReader(sock, playerID);
 			PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {
