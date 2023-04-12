@@ -7,6 +7,7 @@ import axios from "axios";
 import { Card } from "../types/card";
 import { Broadcast, Player, Game, Dealer } from "../types/broadcastResponse";
 import { Decision } from "../types/decisionRequest";
+import { bettingState, playingState } from "../mockRequests/response";
 
 // components
 import Controls from "../components/Controls";
@@ -14,7 +15,7 @@ import Betting from "../components/Betting";
 import PlayersHand from "../components/PlayersHand";
 import OpponentsHand from "../components/OpponentsHand";
 
-function Game() {
+function Blackjack() {
   // is player connected to the server
   const [isConnected, setIsConnected] = useState(false);
 
@@ -131,6 +132,7 @@ function Game() {
   };
 
   // server polling for game updates
+  /*
   useInterval(async () => {
     const data = await axios.get(`/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
@@ -171,14 +173,19 @@ function Game() {
     // update the seats
     setSeats(tempSeats);
   }, POLL_REFRESH_INTERVAL);
+  */
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
-    const connectionData = await axios.get(URL + "/connect");
-    const givenId = connectionData.data.id;
-    setPlayerID(givenId);
-    const gameData = await axios.get(URL + `/update/${givenId}`);
-    setGameState(gameData.data);
+    // const connectionData = await axios.get(URL + "/connect");
+    // const givenId = connectionData.data.id;
+    // setPlayerID(givenId);
+    // const gameData = await axios.get(URL + `/update/${givenId}`);
+    // setGameState(gameData.data);
+
+    //TESTING
+    setPlayerID(1);
+    setGameState(playingState);
   };
 
   useEffect(() => {
@@ -189,60 +196,75 @@ function Game() {
 
   return (
     <div className="w-96 max-w-sm h-screen flex items-center flex-col">
-      {isConnected ? (
-        <div>Connecting to Table</div>
+      {!isConnected ? (
+        <div>connecting to the table</div>
       ) : (
         <>
-          <h1 className="text-3xl text-primary">Dealer</h1>
-          {/* dealer hand */}
-          <div
-            id="dealerHand"
-            className="flex justify-center mt-14 relative scale-[0.8] flex-wrap w-[300px]"
-          >
-            <h1
-              className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                winner == "you" ? "line-through" : ""
-              } `}
-            >
-              {/* more logic can go here to strike through value when busted */}
-              {dealer["cardSum"]}
-            </h1>
+          {/* is game in betting state */}
+          {gameState["status"] === 0 ? (
+            <>
+              <h1 className="text-6xl font-bold mb-8 mt-8">BETTING TIME...</h1>
+              <h1 className="text-2xl font-bold mb-32 ">
+                select a chip to place a bet
+              </h1>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl text-primary">Dealer</h1>
+              {/* dealer hand */}
+              <div
+                id="dealerHand"
+                className="flex justify-center mt-14 relative scale-[0.8] flex-wrap w-[300px]"
+              >
+                <h1
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
+                    winner == "you" ? "line-through" : ""
+                  } `}
+                >
+                  {/* more logic can go here to strike through value when busted */}
+                  {dealer["cardSum"]}
+                </h1>
 
-            {dealer["dealerCards"].map((card, index) => {
-              // kinda janky logic
-              let cardArr = card.split("");
-              const suit = cardArr.pop();
-              const cardNo = cardArr.join("");
+                {dealer["dealerCards"].map((card, index) => {
+                  // kinda janky logic
+                  let cardArr = card.split("");
+                  const suit = cardArr.pop();
+                  const cardNo = cardArr.join("");
 
-              if (gameState["status"] === 1) {
-                const hidden =
-                  index == 0
-                    ? "bg-[url('/src/assets/cards/cardBack.png')] -rotate-6 -mt-3"
-                    : "bg-[url('/src/assets/cards/card.png')]";
-                return (
-                  <div
-                    key={index}
-                    className={`flex justify-center items-center text-4xl text-[#6D5C5C]  bg-cover w-24 h-36 -ml-6 ${hidden}`}
-                  >
-                    {index != 0 ? cardNo : ""}
-                  </div>
-                );
-              } else {
-                const sendToAbove =
-                  index > 2 ? `absolute left-${index > 3 ? 12 : 6} top-28` : "";
-                const animateNewCard = index > 1 ? "animate-getCard" : "";
-                return (
-                  <div
-                    key={index}
-                    className={`flex justify-center items-center text-4xl text-[#6D5C5C] bg-[url('/src/assets/cards/card.png')] bg-cover w-24 h-36 -ml-6 ${animateNewCard} ${sendToAbove}`}
-                  >
-                    {cardNo}
-                  </div>
-                );
-              }
-            })}
-          </div>
-          <div className="bg-[url('/src/assets/cards/dealerShadow.png')] bg-inherit bg-no-repeat w-40 h-4 mt-10"></div>
+                  if (gameState["status"] === 1) {
+                    const hidden =
+                      index == 0
+                        ? "bg-[url('/src/assets/cards/cardBack.png')] -rotate-6 -mt-3"
+                        : "bg-[url('/src/assets/cards/card.png')]";
+                    return (
+                      <div
+                        key={index}
+                        className={`flex justify-center items-center text-4xl text-[#6D5C5C]  bg-cover w-24 h-36 -ml-6 ${hidden}`}
+                      >
+                        {index != 0 ? cardNo : ""}
+                      </div>
+                    );
+                  } else {
+                    const sendToAbove =
+                      index > 2
+                        ? `absolute left-${index > 3 ? 12 : 6} top-28`
+                        : "";
+                    const animateNewCard = index > 1 ? "animate-getCard" : "";
+                    return (
+                      <div
+                        key={index}
+                        className={`flex justify-center items-center text-4xl text-[#6D5C5C] bg-[url('/src/assets/cards/card.png')] bg-cover w-24 h-36 -ml-6 ${animateNewCard} ${sendToAbove}`}
+                      >
+                        {cardNo}
+                      </div>
+                    );
+                  }
+                })}
+              </div>
+              <div className="bg-[url('/src/assets/cards/dealerShadow.png')] bg-inherit bg-no-repeat w-40 h-4 mt-10"></div>
+            </>
+          )}
+
           {/* Table Display */}
           <div id="table" className="flex absolute bottom-64">
             {seats.map((pId, index) => {
@@ -281,9 +303,14 @@ function Game() {
           {/* is gameState in the betting state */}
           {gameState?.status === 0 ? (
             <>
-              {/* COULD PUT BET AMOUNT ON TOP OF A CHIP */}
-              {player["bet"] > 0 ? <div>{player["bet"]}</div> : null}
-              <div className="bg-[url('/src/assets/poker_chip_bg.png')] bg-inherit bg-no-repeat"></div>
+              <div className="bg-[url('/src/assets/poker_chip_bg.png')] bg-inherit bg-no-repeat bg-cover w-48 h-48 opacity-50 flex justify-center items-center	">
+                {/* COULD PUT BET AMOUNT ON TOP OF A CHIP */}
+                {player["bet"] > 0 ? (
+                  <h1 className="text-2xl">{player["bet"]}</h1>
+                ) : (
+                  <h1 className="text-2xl">0</h1>
+                )}
+              </div>
               <Betting setPlayer={setPlayer} />
             </>
           ) : (
@@ -367,4 +394,4 @@ function Game() {
   );
 }
 
-export default Game;
+export default Blackjack;

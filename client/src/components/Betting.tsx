@@ -8,33 +8,27 @@ interface BettingProps {
 }
 
 const Betting: FC<BettingProps> = ({ setPlayer }) => {
-  const handleBet = (e: HTMLButtonElement) => {
+  const handleBet = (amount: number) => {
     setPlayer((prev) => {
-      const newBet = prev["bet"] + parseInt(e.value);
+      const newBet = prev["bet"] + amount;
       return { ...prev, bet: newBet };
     });
   };
 
   return (
-    <>
-      <div>
-        {chips.map((val) => {
-          return (
-            <>
-              <div
-                className={`bg-[url('/src/assets/chips/chip_${val}.png')] bg-inherit bg-no-repeat`}
-              >
-                <button
-                  value={val}
-                  onClick={(e) => handleBet(e.currentTarget)}
-                ></button>
-              </div>
-              <h1>{val}</h1>
-            </>
-          );
-        })}
-      </div>
-    </>
+    <div className="flex">
+      {chips.map((val) => {
+        return (
+          <div className="flex flex-col place-content-center m-2" key={val}>
+            <div
+              className={`bg-[url('/src/assets/chips/chip_1.png')] bg-no-repeat bg-cover w-16 h-16`}
+              onClick={() => handleBet(val)}
+            ></div>
+            <div className="text-center	">{val}</div>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 
