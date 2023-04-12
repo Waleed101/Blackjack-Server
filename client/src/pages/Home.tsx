@@ -1,6 +1,4 @@
-import projectLogo from "../assets/projectLogo.png";
 import playIcon from "../assets/playIcon.png";
-import pokerLogo from "../assets/poker-cards.png";
 import { Link } from "react-router-dom";
 
 export function Home() {
