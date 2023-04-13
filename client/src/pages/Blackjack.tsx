@@ -134,6 +134,10 @@ function Blackjack() {
   // server polling for game updates
 
   useInterval(async () => {
+    if (!isConnected) {
+      return
+    }
+
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
 
@@ -181,10 +185,8 @@ function Blackjack() {
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
-    const givenId = connectionData.data;
-    setPlayerID(givenId);
-    const gameData = await axios.get(URL + `/update/${givenId}`);
-    setGameState(gameData.data);
+    setPlayerID(connectionData.data.playerID);
+    setGameState(connectionData.data.gameState);
   };
 
   useEffect(() => {
