@@ -112,6 +112,8 @@ bool doneTurn(std::vector<Card> cards, int max) {
 	*min_element(total.begin(), total.end()) > max;
 }
 
+
+
 struct Player {
     int id;
     int seat;
@@ -119,7 +121,7 @@ struct Player {
     std::vector<Card> cards;
     int balance;
     int isActive;
-    bool hasWon;
+    int hasWon;
     
     Player(int p_id, int p_seat, int p_bet, std::vector<Card> p_cards, 
 			int p_balance, int p_isActive, bool p_hasWon)
@@ -137,6 +139,7 @@ struct Player {
 		converted["isActive"] = isActive;
 		converted["cardSum"] = formatCardSum(cardSum(cards));
 		converted["isBusted"] = isBusted(cards);
+		converted["hasWon"] = hasWon;
 
 		return converted;
 	}
@@ -252,9 +255,28 @@ class DealerThread : public Thread{
 					}
 					timeRemaining = 10;
 				} else if (currentState == 1 && currentSeatPlaying == numberOfPlayers) {
+					bool hasDealerBusted = isBusted(cards);
+					for (int i = 0; i < players.size(); i++) {
+						bool hasPlayerBusted = isBusted(players[i]->cards);
+						if (hasDealerBusted && !hasPlayerBusted) { // winner
+							players[i]->hasWon = 1;
+							players[i]->balance += players[i]->bet * 2;
+						}
+						else if((!hasDealerBusted && hasPlayerBusted) || ()) { // loser
+							players[i]->hasWon = 0;
+							players[i]->balance -= players[i]->bet;
+						} else if(hasDealerBusted && hasPlayerBusted) { // push
+							players[i]->hasWon = 2;
+							players[i]->balance += players[i]->bet;
+						}
+					}
+
+					timeRemaining = 10;
+				} else if (currentState == 2) {
 					currentSeatPlaying = 0;
 					currentState = 0;
 					cards = {};
+					timeRemaining = 10;
 				}
 
 			
@@ -366,7 +388,9 @@ class PlayerWriter : public Thread{
 						dealer.incrementNextPlayer();
 					}
 				} else {
-					data.bet = playerAction["betAmount"].asInt();
+					int betAmn = playerAction["betAmount"].asInt();
+					data.balance -= betAmn; 
+					data.bet = betAmn;
 				}
 
 				std::cout << playerAction.toStyledString() << std::endl;
