@@ -132,9 +132,6 @@ class DealerThread : public Thread{
 		std::vector<Player> players;
 
 		int currentState = 0;
-
-		
-
 		int timeRemaining = 10;
 		int currentSeatPlaying = 0;
 
@@ -171,10 +168,19 @@ class DealerThread : public Thread{
 			currentSeatPlaying++;
 		}
 
+		void updateGameState() {
+			gameState["dealerCards"] = from(cards);
+			gameState["hasDealerBusted"] = isBusted(cards);
+			gameState["status"] = currentState;
+			gameState["timeRemaining"] = timeRemaining;
+			gameState["turnID"] = currentSeatPlaying;
+			gameState["cardSum"] = cardSum(cards);
+			gameState["players"] = from(players);
+		}
+
 		virtual long ThreadMain(void) override{
 			Semaphore broadcast("broadcast", 0, true);
 			Semaphore mutex("mutex");
-			
 			
 			while(true)
 			{
@@ -211,15 +217,7 @@ class DealerThread : public Thread{
 					cards = {};
 				}
 
-				gameState["dealerCards"] = from(cards);
-				gameState["hasDealerBusted"] = isBusted(cards);
-				gameState["status"] = currentState;
-				gameState["timeRemaining"] = timeRemaining;
-				gameState["turnID"] = currentSeatPlaying;
-				gameState["cardSum"] = cardSum(cards);
-				if (players.size() > 0)
-					std::cout << players[0].bet << std::endl;
-				gameState["players"] = from(players);
+				updateGameState();
 
 				mutex.Signal();
 
@@ -234,10 +232,11 @@ class DealerThread : public Thread{
 class PlayerReader : public Thread{
 	private:
 		int playerID;
+		DealerThread &dealer;
 	public:
 		Socket socket;
 		
-		PlayerReader(Socket & sock, int playerID):Thread(1000),socket(sock){
+		PlayerReader(Socket & sock, int playerID, DealerThread &dealer):Thread(1000),socket(sock),dealer(dealer){
 			this->playerID = playerID;
 		}
 		
@@ -248,6 +247,8 @@ class PlayerReader : public Thread{
 			Semaphore broadcast("broadcast");
 
 			Json::Value initalBroadcast(Json::objectValue);
+
+			dealer.updateGameState();
 
 			initalBroadcast["gameState"] = gameState;
 			initalBroadcast["playerID"] = this->playerID;
@@ -346,7 +347,7 @@ int main(int argc, char* argv[])
 			std::cout << "Got a new player" << std::endl;
 			playerID++;
 			numberOfPlayers++;
-			PlayerReader * reader = new PlayerReader(sock, playerID);
+			PlayerReader * reader = new PlayerReader(sock, playerID, *dealer);
 			PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {

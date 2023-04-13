@@ -48,23 +48,21 @@ app.get("/connect", (req, res) => {
         let procData = JSON.parse(initalData)
         let playerID = procData["playerID"]
         let gameState = procData["gameState"]
+
         manageSocket(sock, playerID)
-        // console.log(procData)
-        // console.log("-------")
-        // console.log(gameState)
 
         // data will hold the broadcast message
         // thats the reference to the socket
 
         sockets[playerID] = {sock: sock, data: gameState}
-        res.send(playerID.toString())
+        res.send(procData)
     }).catch((err) => {
         console.log(err)
     })
 });
 
 app.get('/update/:id', (req, res) => {
-    res.send(sockets[req.params.id].data)
+    res.send(sockets[req.params.id]?.data ?? {})
 });
 
 app.post('/action/:id', (req, res) => {
