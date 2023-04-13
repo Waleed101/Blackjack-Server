@@ -114,11 +114,11 @@ struct Player {
 };
 
 
-Json::Value from(std::vector<Player> arr) {
+Json::Value from(std::vector<Player*> arr) {
 	Json::Value convertedArr(Json::objectValue);
 
-	for(Player & inst : arr) {
-		convertedArr[std::to_string(inst.id)] = inst.toJson(); 
+	for(Player * inst : arr) {
+		convertedArr[std::to_string(inst->id)] = inst->toJson(); 
 	}
 
 	return convertedArr;
@@ -129,7 +129,7 @@ class DealerThread : public Thread{
 		int TIME_BETWEEN_REFRESHES;
 		
 		std::vector<Card> cards; 
-		std::vector<Player> players;
+		std::vector<Player*> players;
 
 		int currentState = 0;
 
@@ -143,7 +143,7 @@ class DealerThread : public Thread{
 
 		}
 
-		void addPlayer(Player & newPlayer) {
+		void addPlayer(Player * newPlayer) {
 			Semaphore mutex("mutex");
 			mutex.Wait();
 			players.push_back(newPlayer);
@@ -155,7 +155,7 @@ class DealerThread : public Thread{
 
 			mutex.Wait();
 			for (auto it = players.begin(); it != players.end(); ++it) {
-				if (it->id == idToRemove) {
+				if ((*it)->id == idToRemove) {
 					players.erase(it);
 					break;
 				}
@@ -191,7 +191,7 @@ class DealerThread : public Thread{
 						cards = getCards(2);
 
 						for (int i = 0; i < players.size(); i++) {
-							players[i].cards = getCards(2);
+							players[i]->cards = getCards(2);
 						}
 
 						currentSeatPlaying = 0;
@@ -214,7 +214,7 @@ class DealerThread : public Thread{
 				gameState["turnID"] = currentSeatPlaying;
 				gameState["cardSum"] = cardSum(cards);
 				if (players.size() > 0)
-					std::cout << players[0].bet << std::endl;
+					std::cout << players[0]->bet << std::endl;
 				gameState["players"] = from(players);
 
 				mutex.Signal();
@@ -276,7 +276,8 @@ class PlayerWriter : public Thread{
 			
 			Semaphore mutex("mutex");
 			
-			dealer.addPlayer(data);			
+			Player * data_ptr = &data;
+			dealer.addPlayer(data_ptr);			
 
 			while(true)
 			{
