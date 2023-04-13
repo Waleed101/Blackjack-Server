@@ -140,6 +140,9 @@ function Blackjack() {
     console.log(1);
     console.log(gameUpdate);
 
+    console.log(1);
+    console.log(gameUpdate);
+
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
     const tempSeats = [-1, -1, -1, -1];
@@ -176,7 +179,7 @@ function Blackjack() {
     // update the seats
     setSeats(tempSeats);
   }, POLL_REFRESH_INTERVAL);
-
+  
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
