@@ -89,11 +89,11 @@ struct Player {
     int bet;
     std::vector<Card> cards;
     int balance;
-    bool isActive;
+    int isActive;
     bool hasWon;
     
     Player(int p_id, int p_seat, int p_bet, std::vector<Card> p_cards, 
-			int p_balance, bool p_isActive, bool p_hasWon)
+			int p_balance, int p_isActive, bool p_hasWon)
         : id(p_id), seat(p_seat), bet(p_bet), cards(p_cards),
           balance(p_balance), isActive(p_isActive), hasWon(p_hasWon)
     {}
@@ -191,7 +191,13 @@ class DealerThread : public Thread{
 						cards = getCards(2);
 
 						for (int i = 0; i < players.size(); i++) {
-							players[i]->cards = getCards(2);
+							if (players[i]->isActive == 1)
+								players[i]->isActive = 0;
+
+							if (players[i]->isActive == 0)
+								players[i]->cards = getCards(2);
+							else if (players[i]->isActive == 1)
+								removePlayer(players[i]->id);
 						}
 
 						currentSeatPlaying = 0;
@@ -205,16 +211,18 @@ class DealerThread : public Thread{
 						}
 					}
 					timeRemaining = 10;
+				} else if (currentState == 1 && currentSeatPlaying == numberOfPlayers) {
+					currentSeatPlaying = 0;
+					currentState = 0;
+					cards = {};
 				}
 
 				gameState["dealerCards"] = from(cards);
 				gameState["hasDealerBusted"] = isBusted(cards);
-				gameState["state"] = currentState;
+				gameState["status"] = currentState;
 				gameState["timeRemaining"] = timeRemaining;
 				gameState["turnID"] = currentSeatPlaying;
 				gameState["cardSum"] = cardSum(cards);
-				if (players.size() > 0)
-					std::cout << players[0]->bet << std::endl;
 				gameState["players"] = from(players);
 
 				mutex.Signal();
@@ -243,13 +251,19 @@ class PlayerReader : public Thread{
 			
 			Semaphore broadcast("broadcast");
 
-			ByteArray responseBuffer(std::to_string(this->playerID));
+			Json::Value initalBroadcast(Json::objectValue);
+
+			initalBroadcast["gameState"] = gameState;
+			initalBroadcast["playerID"] = this->playerID;
+
+			ByteArray responseBuffer(initalBroadcast.toStyledString());
 			socket.Write(responseBuffer);
 			
 			while(true)
 			{
 				broadcast.Wait();
 				std::cout << "Writing to socket..." << std::endl;
+				std::cout << gameState.toStyledString() << std::endl;
 				ByteArray responseBuffer(gameState.toStyledString());
 				socket.Write(responseBuffer);
 			}		
@@ -267,7 +281,7 @@ class PlayerWriter : public Thread{
 
 		PlayerWriter(Socket &sock, int playerID, DealerThread &dealer)
 			: Thread(1000), socket(sock),
-			data(playerID, 0, 0, {}, 200, true, false), dealer(dealer)
+			data(playerID, 0, 0, {}, 200, 1, false), dealer(dealer)
 		{}
 		
 		virtual long ThreadMain(void) override{
@@ -284,7 +298,7 @@ class PlayerWriter : public Thread{
 				ByteArray * buffer = new ByteArray();
 				if (socket.Read(*buffer) == 0) {
 					std::cout << "Player-" << std::to_string(data.id) << " left the game." << std::endl;
-					dealer.removePlayer(data.id);
+					data.isActive = 2;
 					break;
 				}
 
@@ -318,11 +332,11 @@ class PlayerWriter : public Thread{
 		}
 };
 
-int main(void)
+int main(int argc, char* argv[])
 {
     std::cout << "-----C++ Server-----" << std::endl;
- 
-    int port = 2042;
+
+    int port = argc >= 2 ? std::stoi(argv[1]) : 2000;
 
 	DealerThread * dealer = new DealerThread();
     

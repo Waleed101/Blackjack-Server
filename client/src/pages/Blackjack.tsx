@@ -132,10 +132,13 @@ function Blackjack() {
   };
 
   // server polling for game updates
-  /*
+
   useInterval(async () => {
-    const data = await axios.get(`/update/${playerID}`);
+    const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
+
+    console.log(1);
+    console.log(gameUpdate);
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -173,19 +176,15 @@ function Blackjack() {
     // update the seats
     setSeats(tempSeats);
   }, POLL_REFRESH_INTERVAL);
-  */
+
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
-    // const connectionData = await axios.get(URL + "/connect");
-    // const givenId = connectionData.data.id;
-    // setPlayerID(givenId);
-    // const gameData = await axios.get(URL + `/update/${givenId}`);
-    // setGameState(gameData.data);
-
-    //TESTING
-    setPlayerID(1);
-    setGameState(playingState);
+    const connectionData = await axios.get(URL + "/connect");
+    const givenId = connectionData.data;
+    setPlayerID(givenId);
+    const gameData = await axios.get(URL + `/update/${givenId}`);
+    setGameState(gameData.data);
   };
 
   useEffect(() => {
@@ -193,6 +192,13 @@ function Blackjack() {
     initialConnection();
     setIsConnected(true);
   }, []);
+
+  window.addEventListener("beforeunload", async (ev) => {
+    ev.preventDefault();
+    await axios.delete(URL + `/close/${playerID}`);
+    window.onbeforeunload = null;
+    process.exit()
+  });
 
   return (
     <div className="w-96 max-w-sm h-screen flex items-center flex-col">
@@ -217,9 +223,8 @@ function Blackjack() {
                 className="flex justify-center mt-14 relative scale-[0.8] flex-wrap w-[300px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                    winner == "you" ? "line-through" : ""
-                  } `}
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "you" ? "line-through" : ""
+                    } `}
                 >
                   {/* more logic can go here to strike through value when busted */}
                   {dealer["cardSum"]}
@@ -321,9 +326,8 @@ function Blackjack() {
                 className="flex justify-center mt-14 relative scale-[0.7] flex-wrap w-[350px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                    winner == "dealer" ? "line-through" : ""
-                  }`}
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "dealer" ? "line-through" : ""
+                    }`}
                 >
                   {player["cardSum"]}
                 </h1>
