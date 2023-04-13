@@ -69,18 +69,47 @@ Json::Value from(std::vector<Card> arr) {
 	return convertedArr;
 }
 
-int cardSum(std::vector<Card> cards) {
-	int total = 0;
+std::vector<int> cardSum(std::vector<Card> cards) {
+	std::vector<int> total = {0, 0};
+
+	bool hasAce = false;
 
 	for(Card card : cards) {
-		total += std::min(card.num, 10);
+		if (card.num == 1) {
+			hasAce = true;
+			total[1] = total[0] + 10;
+		}
+
+		total[0] += std::min(card.num, 10);
+		if (hasAce) {
+			total[1] += std::min(card.num, 10);
+		}
 	}
 
 	return total;
 }
 
+std::string formatCardSum(std::vector<int> cardSum) {
+	return cardSum[1] != 0 ? (std::to_string(cardSum[0]) + "/" + std::to_string(cardSum[1])) : 
+			std::to_string(cardSum[0]);
+}
+
 bool isBusted(std::vector<Card> cards) {
-	return cardSum(cards) > 21;
+	std::vector<int> total = cardSum(cards);
+
+	if (total[1] == 0) {
+		return total[0] > 21;
+	} else {
+		return total[0] > 21 && total[1] > 21;
+	}
+}
+
+bool doneTurn(std::vector<Card> cards, int max) {
+	std::vector<int> total = cardSum(cards);
+
+	return total[0] == max || total[1] == max || 
+	(total[1] == 0 && total[0] > max) || 
+	*min_element(total.begin(), total.end()) > max;
 }
 
 struct Player {
@@ -106,7 +135,7 @@ struct Player {
 		converted["cards"] = from(cards);
 		converted["balance"] = balance;
 		converted["isActive"] = isActive;
-		converted["cardSum"] = cardSum(cards);
+		converted["cardSum"] = formatCardSum(cardSum(cards));
 		converted["isBusted"] = isBusted(cards);
 
 		return converted;
@@ -132,14 +161,11 @@ class DealerThread : public Thread{
 		std::vector<Player*> players;
 
 		int currentState = 0;
-
-		
-
 		int timeRemaining = 10;
 		int currentSeatPlaying = 0;
 
 	public:
-		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(5){
+		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
 
 		}
 
@@ -153,14 +179,12 @@ class DealerThread : public Thread{
 		void removePlayer(int idToRemove) {
 			Semaphore mutex("mutex");
 
-			mutex.Wait();
 			for (auto it = players.begin(); it != players.end(); ++it) {
 				if ((*it)->id == idToRemove) {
 					players.erase(it);
 					break;
 				}
 			}
-			mutex.Signal();
 
 			numberOfPlayers--;
 
@@ -171,20 +195,36 @@ class DealerThread : public Thread{
 			currentSeatPlaying++;
 		}
 
+		void updateGameState() {
+			gameState["dealerCards"] = from(cards);
+			gameState["hasDealerBusted"] = isBusted(cards);
+			gameState["status"] = currentState;
+			gameState["timeRemaining"] = timeRemaining;
+			gameState["turnID"] = currentSeatPlaying;
+			gameState["dealerSum"] = formatCardSum(cardSum(cards));
+			gameState["players"] = from(players);
+		}
+
 		virtual long ThreadMain(void) override{
+			std::cout << "Starting sempahores" << std::endl;
 			Semaphore broadcast("broadcast", 0, true);
 			Semaphore mutex("mutex");
 			
-			
+			std::cout << "Entering loop" << std::endl;
+
 			while(true)
 			{
+				std::cout << "Sleeping" << std::endl;
 				sleep(TIME_BETWEEN_REFRESHES);
 
+				std::cout << "Finished sleeping" << std::endl;
 				timeRemaining -= TIME_BETWEEN_REFRESHES;
 
 				mutex.Wait();
 
 				if (timeRemaining <= 0) {
+					
+			std::cout << "Entering state change" << std::endl;
 					if (currentState == 0) {
 						currentState = 1;
 
@@ -196,7 +236,7 @@ class DealerThread : public Thread{
 
 							if (players[i]->isActive == 0)
 								players[i]->cards = getCards(2);
-							else if (players[i]->isActive == 1)
+							else if (players[i]->isActive == 2)
 								removePlayer(players[i]->id);
 						}
 
@@ -217,17 +257,17 @@ class DealerThread : public Thread{
 					cards = {};
 				}
 
-				gameState["dealerCards"] = from(cards);
-				gameState["hasDealerBusted"] = isBusted(cards);
-				gameState["status"] = currentState;
-				gameState["timeRemaining"] = timeRemaining;
-				gameState["turnID"] = currentSeatPlaying;
-				gameState["cardSum"] = cardSum(cards);
-				gameState["players"] = from(players);
+			
+			std::cout << "Updating the game state" << std::endl;
+				updateGameState();
 
 				mutex.Signal();
 
+			
+			std::cout << "Getting everyone into it" << std::endl;
 				for(int i = 0; i < numberOfPlayers; i++) {
+					
+			std::cout << std::to_string(i) << std::endl;
 					broadcast.Signal();
 				}
 			}
@@ -238,10 +278,11 @@ class DealerThread : public Thread{
 class PlayerReader : public Thread{
 	private:
 		int playerID;
+		DealerThread &dealer;
 	public:
 		Socket socket;
 		
-		PlayerReader(Socket & sock, int playerID):Thread(1000),socket(sock){
+		PlayerReader(Socket & sock, int playerID, DealerThread &dealer):Thread(1000),socket(sock),dealer(dealer){
 			this->playerID = playerID;
 		}
 		
@@ -252,6 +293,8 @@ class PlayerReader : public Thread{
 			Semaphore broadcast("broadcast");
 
 			Json::Value initalBroadcast(Json::objectValue);
+
+			dealer.updateGameState();
 
 			initalBroadcast["gameState"] = gameState;
 			initalBroadcast["playerID"] = this->playerID;
@@ -316,7 +359,8 @@ class PlayerWriter : public Thread{
 
 					if (action == "HIT") {
 						data.cards.push_back(getRandomCard());
-						if (cardSum(data.cards) >= 21)
+						
+						if (doneTurn(data.cards, 21))
 							dealer.incrementNextPlayer();
 					} else {
 						dealer.incrementNextPlayer();
@@ -352,7 +396,7 @@ int main(int argc, char* argv[])
 			std::cout << "Got a new player" << std::endl;
 			playerID++;
 			numberOfPlayers++;
-			PlayerReader * reader = new PlayerReader(sock, playerID);
+			PlayerReader * reader = new PlayerReader(sock, playerID, *dealer);
 			PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {

@@ -3,7 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
-const SERVER_PORT = parseInt(process.argv[2]);
+const SERVER_PORT = parseInt(process.argv[2] ?? 2000);
 
 const sockets = {}
 
@@ -48,33 +48,27 @@ app.get("/connect", (req, res) => {
         let procData = JSON.parse(initalData)
         let playerID = procData["playerID"]
         let gameState = procData["gameState"]
+
         manageSocket(sock, playerID)
-        // console.log(procData)
-        // console.log("-------")
-        // console.log(gameState)
 
         // data will hold the broadcast message
         // thats the reference to the socket
 
-        sockets[playerID] = {sock: sock, data: gameState}
-        res.send(playerID.toString())
+        sockets[playerID] = {sock: sock, data: gameState, timestamp: Date.now()}
+        res.send(procData)
     }).catch((err) => {
         console.log(err)
     })
 });
 
 app.get('/update/:id', (req, res) => {
-    res.send(sockets[req.params.id].data)
+
+    res.send(sockets[req.params.id]?.data ?? {})
 });
 
 app.post('/action/:id', (req, res) => {
     console.log(`Client-${req.params.id} performed an action`)
     sockets[req.params.id]['sock'].write(Buffer.from(JSON.stringify(req.body)))
-})
-
-app.delete('/close/:id', (req, res) => {
-    console.log(`Client-${req.params.id} left the table`)
-    sockets[req.params.id]['sock'].end()
 })
 
 app.listen(3000, () => {
@@ -89,7 +83,8 @@ app.listen(3000, () => {
 function manageSocket(sock, id) {
     
     sock.on('data', (data) => {
-        sockets[id].data = data.toString()
+        if (sockets[id])
+            sockets[id].data = data.toString()
     })
 
     sock.on('close', () => {
@@ -100,3 +95,15 @@ function manageSocket(sock, id) {
         console.log(`Error: ${err}`)
     })
 }
+
+function checkDisconnectedClients() {
+    for (let key in sockets) {
+        if (sockets[key]['timestamp'] < Date.now() - 20000) {
+            sockets[key]['sock'].end()
+            console.log("Disconnected the thingy")
+            delete sockets[key]
+        }
+    }
+}
+
+setInterval(checkDisconnectedClients, 5000)

@@ -18,6 +18,7 @@ import OpponentsHand from "../components/OpponentsHand";
 function Blackjack() {
   // is player connected to the server
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false)
 
   // the game related state
   const [gameState, setGameState] = useState<Game>({
@@ -34,8 +35,8 @@ function Blackjack() {
     seat: -1,
     cards: [""],
     balance: 200,
-    isActive: false,
-    hasWon: false,
+    isBusted: false,
+    isActive: 0,
     cardSum: "0",
   });
 
@@ -134,14 +135,14 @@ function Blackjack() {
   // server polling for game updates
 
   useInterval(async () => {
+    if (!isConnected) {
+      return
+    }
+
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
-
-    console.log(1);
-    console.log(gameUpdate);
-
-    console.log(1);
-    console.log(gameUpdate);
+    console.log("hitting again")
+    console.log(gameUpdate)
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -178,16 +179,16 @@ function Blackjack() {
 
     // update the seats
     setSeats(tempSeats);
+
+    setIsLoaded(true)
   }, POLL_REFRESH_INTERVAL);
   
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
-    const givenId = connectionData.data;
-    setPlayerID(givenId);
-    const gameData = await axios.get(URL + `/update/${givenId}`);
-    setGameState(gameData.data);
+    setPlayerID(connectionData.data.playerID);
+    setGameState(connectionData.data.gameState);
   };
 
   useEffect(() => {
@@ -196,16 +197,9 @@ function Blackjack() {
     setIsConnected(true);
   }, []);
 
-  window.addEventListener("beforeunload", async (ev) => {
-    ev.preventDefault();
-    await axios.delete(URL + `/close/${playerID}`);
-    window.onbeforeunload = null;
-    process.exit()
-  });
-
   return (
     <div className="w-96 max-w-sm h-screen flex items-center flex-col">
-      {!isConnected ? (
+      {!isConnected && !isLoaded ? (
         <div>connecting to the table</div>
       ) : (
         <>
