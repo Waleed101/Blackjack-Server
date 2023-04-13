@@ -9,6 +9,7 @@ interface BettingProps {
 
 const Betting: FC<BettingProps> = ({ setPlayer }) => {
   const handleBet = (amount: number) => {
+    console.log("keegans big fat dick")
     setPlayer((prev) => {
       const newBet = prev["bet"] + amount;
       return { ...prev, bet: newBet };
