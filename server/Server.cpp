@@ -205,11 +205,15 @@ class DealerThread : public Thread{
 						}
 					}
 					timeRemaining = 10;
+				} else if (currentState == 1 && currentSeatPlaying == numberOfPlayers) {
+					currentSeatPlaying = 0;
+					currentState = 0;
+					cards = {};
 				}
 
 				gameState["dealerCards"] = from(cards);
 				gameState["hasDealerBusted"] = isBusted(cards);
-				gameState["state"] = currentState;
+				gameState["status"] = currentState;
 				gameState["timeRemaining"] = timeRemaining;
 				gameState["turnID"] = currentSeatPlaying;
 				gameState["cardSum"] = cardSum(cards);
@@ -243,7 +247,12 @@ class PlayerReader : public Thread{
 			
 			Semaphore broadcast("broadcast");
 
-			ByteArray responseBuffer(std::to_string(this->playerID));
+			Json::Value initalBroadcast(Json::objectValue);
+
+			initalBroadcast["gameState"] = gameState;
+			initalBroadcast["playerID"] = this->playerID;
+
+			ByteArray responseBuffer(initalBroadcast.toStyledString());
 			socket.Write(responseBuffer);
 			
 			while(true)
@@ -317,11 +326,11 @@ class PlayerWriter : public Thread{
 		}
 };
 
-int main(void)
+int main(int argc, char* argv[])
 {
     std::cout << "-----C++ Server-----" << std::endl;
- 
-    int port = 2042;
+
+    int port = argc >= 2 ? std::stoi(argv[1]) : 2000;
 
 	DealerThread * dealer = new DealerThread();
     

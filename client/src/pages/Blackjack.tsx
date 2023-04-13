@@ -132,10 +132,13 @@ function Blackjack() {
   };
 
   // server polling for game updates
-  /*
+
   useInterval(async () => {
-    const data = await axios.get(`/update/${playerID}`);
+    const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
+
+    console.log(1);
+    console.log(gameUpdate);
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -173,19 +176,15 @@ function Blackjack() {
     // update the seats
     setSeats(tempSeats);
   }, POLL_REFRESH_INTERVAL);
-  */
+  
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
-    // const connectionData = await axios.get(URL + "/connect");
-    // const givenId = connectionData.data.id;
-    // setPlayerID(givenId);
-    // const gameData = await axios.get(URL + `/update/${givenId}`);
-    // setGameState(gameData.data);
-
-    //TESTING
-    setPlayerID(1);
-    setGameState(playingState);
+    const connectionData = await axios.get(URL + "/connect");
+    const givenId = connectionData.data;
+    setPlayerID(givenId);
+    const gameData = await axios.get(URL + `/update/${givenId}`);
+    setGameState(gameData.data);
   };
 
   useEffect(() => {

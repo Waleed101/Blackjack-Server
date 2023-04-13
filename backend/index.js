@@ -3,7 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
-const SERVER_PORT = 2042;
+const SERVER_PORT = parseInt(process.argv[2]);
 
 const sockets = {}
 
@@ -25,7 +25,7 @@ function initalConnection() {
         })
 
         sock.on('data', (data) => {
-            console.log(data.toString())
+            // console.log(data.toString())
             resolve([sock, data.toString()])
         })
 
@@ -44,29 +44,31 @@ app.get("/connect", (req, res) => {
     const resp = initalConnection()
 
     resp.then((data) => {
-        let [sock, clientID] = data
-        console.log(clientID)
-        manageSocket(sock, clientID)
+        let [sock, initalData] = data
+        let procData = JSON.parse(initalData)
+        let playerID = procData["playerID"]
+        let gameState = procData["gameState"]
+        manageSocket(sock, playerID)
+        // console.log(procData)
+        // console.log("-------")
+        // console.log(gameState)
 
         // data will hold the broadcast message
         // thats the reference to the socket
 
-        sockets[clientID] = {sock: sock, data: null}
-        console.log(clientID)
-        res.send(clientID)
+        sockets[playerID] = {sock: sock, data: gameState}
+        res.send(playerID.toString())
     }).catch((err) => {
         console.log(err)
     })
 });
 
 app.get('/update/:id', (req, res) => {
-    console.log(`Client-${req.params.id} requested an update`)
     res.send(sockets[req.params.id].data)
 });
 
 app.post('/action/:id', (req, res) => {
     console.log(`Client-${req.params.id} performed an action`)
-    console.log(req.body)
     sockets[req.params.id]['sock'].write(Buffer.from(JSON.stringify(req.body)))
 })
 
@@ -82,8 +84,7 @@ app.listen(3000, () => {
 function manageSocket(sock, id) {
     
     sock.on('data', (data) => {
-        sockets[id].data = data
-        console.log(data)
+        sockets[id].data = data.toString()
     })
 
     sock.on('close', () => {
