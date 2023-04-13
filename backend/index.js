@@ -3,7 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
-const SERVER_PORT = parseInt(process.argv[2]);
+const SERVER_PORT = parseInt(process.argv[2] ?? 2000);
 
 const sockets = {}
 
@@ -54,7 +54,7 @@ app.get("/connect", (req, res) => {
         // data will hold the broadcast message
         // thats the reference to the socket
 
-        sockets[playerID] = {sock: sock, data: gameState}
+        sockets[playerID] = {sock: sock, data: gameState, timestamp: Date.now()}
         res.send(procData)
     }).catch((err) => {
         console.log(err)
@@ -62,6 +62,7 @@ app.get("/connect", (req, res) => {
 });
 
 app.get('/update/:id', (req, res) => {
+
     res.send(sockets[req.params.id]?.data ?? {})
 });
 
@@ -82,7 +83,8 @@ app.listen(3000, () => {
 function manageSocket(sock, id) {
     
     sock.on('data', (data) => {
-        sockets[id].data = data.toString()
+        if (sockets[id])
+            sockets[id].data = data.toString()
     })
 
     sock.on('close', () => {
@@ -93,3 +95,15 @@ function manageSocket(sock, id) {
         console.log(`Error: ${err}`)
     })
 }
+
+function checkDisconnectedClients() {
+    for (let key in sockets) {
+        if (sockets[key]['timestamp'] < Date.now() - 20000) {
+            sockets[key]['sock'].end()
+            console.log("Disconnected the thingy")
+            delete sockets[key]
+        }
+    }
+}
+
+setInterval(checkDisconnectedClients, 5000)

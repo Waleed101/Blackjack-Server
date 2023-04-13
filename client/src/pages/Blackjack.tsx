@@ -18,6 +18,7 @@ import OpponentsHand from "../components/OpponentsHand";
 function Blackjack() {
   // is player connected to the server
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false)
 
   // the game related state
   const [gameState, setGameState] = useState<Game>({
@@ -34,8 +35,8 @@ function Blackjack() {
     seat: -1,
     cards: [""],
     balance: 200,
-    isActive: false,
-    hasWon: false,
+    isBusted: false,
+    isActive: 0,
     cardSum: "0",
   });
 
@@ -140,9 +141,8 @@ function Blackjack() {
 
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
-
-    console.log(1);
-    console.log(gameUpdate);
+    console.log("hitting again")
+    console.log(gameUpdate)
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -179,6 +179,8 @@ function Blackjack() {
 
     // update the seats
     setSeats(tempSeats);
+
+    setIsLoaded(true)
   }, POLL_REFRESH_INTERVAL);
   
 
@@ -197,7 +199,7 @@ function Blackjack() {
 
   return (
     <div className="w-96 max-w-sm h-screen flex items-center flex-col">
-      {!isConnected ? (
+      {!isConnected && !isLoaded ? (
         <div>connecting to the table</div>
       ) : (
         <>
@@ -218,9 +220,8 @@ function Blackjack() {
                 className="flex justify-center mt-14 relative scale-[0.8] flex-wrap w-[300px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                    winner == "you" ? "line-through" : ""
-                  } `}
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "you" ? "line-through" : ""
+                    } `}
                 >
                   {/* more logic can go here to strike through value when busted */}
                   {dealer["cardSum"]}
@@ -322,9 +323,8 @@ function Blackjack() {
                 className="flex justify-center mt-14 relative scale-[0.7] flex-wrap w-[350px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                    winner == "dealer" ? "line-through" : ""
-                  }`}
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "dealer" ? "line-through" : ""
+                    }`}
                 >
                   {player["cardSum"]}
                 </h1>

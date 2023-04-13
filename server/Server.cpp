@@ -69,18 +69,47 @@ Json::Value from(std::vector<Card> arr) {
 	return convertedArr;
 }
 
-int cardSum(std::vector<Card> cards) {
-	int total = 0;
+std::vector<int> cardSum(std::vector<Card> cards) {
+	std::vector<int> total = {0, 0};
+
+	bool hasAce = false;
 
 	for(Card card : cards) {
-		total += std::min(card.num, 10);
+		if (card.num == 1) {
+			hasAce = true;
+			total[1] = total[0] + 10;
+		}
+
+		total[0] += std::min(card.num, 10);
+		if (hasAce) {
+			total[1] += std::min(card.num, 10);
+		}
 	}
 
 	return total;
 }
 
+std::string formatCardSum(std::vector<int> cardSum) {
+	return cardSum[1] != 0 ? (std::to_string(cardSum[0]) + "/" + std::to_string(cardSum[1])) : 
+			std::to_string(cardSum[0]);
+}
+
 bool isBusted(std::vector<Card> cards) {
-	return cardSum(cards) > 21;
+	std::vector<int> total = cardSum(cards);
+
+	if (total[1] == 0) {
+		return total[0] > 21;
+	} else {
+		return total[0] > 21 && total[1] > 21;
+	}
+}
+
+bool doneTurn(std::vector<Card> cards, int max) {
+	std::vector<int> total = cardSum(cards);
+
+	return total[0] == max || total[1] == max || 
+	(total[1] == 0 && total[0] > max) || 
+	*min_element(total.begin(), total.end()) > max;
 }
 
 struct Player {
@@ -89,11 +118,11 @@ struct Player {
     int bet;
     std::vector<Card> cards;
     int balance;
-    bool isActive;
+    int isActive;
     bool hasWon;
     
     Player(int p_id, int p_seat, int p_bet, std::vector<Card> p_cards, 
-			int p_balance, bool p_isActive, bool p_hasWon)
+			int p_balance, int p_isActive, bool p_hasWon)
         : id(p_id), seat(p_seat), bet(p_bet), cards(p_cards),
           balance(p_balance), isActive(p_isActive), hasWon(p_hasWon)
     {}
@@ -106,7 +135,7 @@ struct Player {
 		converted["cards"] = from(cards);
 		converted["balance"] = balance;
 		converted["isActive"] = isActive;
-		converted["cardSum"] = cardSum(cards);
+		converted["cardSum"] = formatCardSum(cardSum(cards));
 		converted["isBusted"] = isBusted(cards);
 
 		return converted;
@@ -114,11 +143,11 @@ struct Player {
 };
 
 
-Json::Value from(std::vector<Player> arr) {
+Json::Value from(std::vector<Player*> arr) {
 	Json::Value convertedArr(Json::objectValue);
 
-	for(Player & inst : arr) {
-		convertedArr[std::to_string(inst.id)] = inst.toJson(); 
+	for(Player * inst : arr) {
+		convertedArr[std::to_string(inst->id)] = inst->toJson(); 
 	}
 
 	return convertedArr;
@@ -129,18 +158,18 @@ class DealerThread : public Thread{
 		int TIME_BETWEEN_REFRESHES;
 		
 		std::vector<Card> cards; 
-		std::vector<Player> players;
+		std::vector<Player*> players;
 
 		int currentState = 0;
 		int timeRemaining = 10;
 		int currentSeatPlaying = 0;
 
 	public:
-		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(5){
+		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
 
 		}
 
-		void addPlayer(Player & newPlayer) {
+		void addPlayer(Player * newPlayer) {
 			Semaphore mutex("mutex");
 			mutex.Wait();
 			players.push_back(newPlayer);
@@ -150,14 +179,12 @@ class DealerThread : public Thread{
 		void removePlayer(int idToRemove) {
 			Semaphore mutex("mutex");
 
-			mutex.Wait();
 			for (auto it = players.begin(); it != players.end(); ++it) {
-				if (it->id == idToRemove) {
+				if ((*it)->id == idToRemove) {
 					players.erase(it);
 					break;
 				}
 			}
-			mutex.Signal();
 
 			numberOfPlayers--;
 
@@ -174,30 +201,43 @@ class DealerThread : public Thread{
 			gameState["status"] = currentState;
 			gameState["timeRemaining"] = timeRemaining;
 			gameState["turnID"] = currentSeatPlaying;
-			gameState["cardSum"] = cardSum(cards);
+			gameState["dealerSum"] = formatCardSum(cardSum(cards));
 			gameState["players"] = from(players);
 		}
 
 		virtual long ThreadMain(void) override{
+			std::cout << "Starting sempahores" << std::endl;
 			Semaphore broadcast("broadcast", 0, true);
 			Semaphore mutex("mutex");
 			
+			std::cout << "Entering loop" << std::endl;
+
 			while(true)
 			{
+				std::cout << "Sleeping" << std::endl;
 				sleep(TIME_BETWEEN_REFRESHES);
 
+				std::cout << "Finished sleeping" << std::endl;
 				timeRemaining -= TIME_BETWEEN_REFRESHES;
 
 				mutex.Wait();
 
 				if (timeRemaining <= 0) {
+					
+			std::cout << "Entering state change" << std::endl;
 					if (currentState == 0) {
 						currentState = 1;
 
 						cards = getCards(2);
 
 						for (int i = 0; i < players.size(); i++) {
-							players[i].cards = getCards(2);
+							if (players[i]->isActive == 1)
+								players[i]->isActive = 0;
+
+							if (players[i]->isActive == 0)
+								players[i]->cards = getCards(2);
+							else if (players[i]->isActive == 2)
+								removePlayer(players[i]->id);
 						}
 
 						currentSeatPlaying = 0;
@@ -217,11 +257,17 @@ class DealerThread : public Thread{
 					cards = {};
 				}
 
+			
+			std::cout << "Updating the game state" << std::endl;
 				updateGameState();
 
 				mutex.Signal();
 
+			
+			std::cout << "Getting everyone into it" << std::endl;
 				for(int i = 0; i < numberOfPlayers; i++) {
+					
+			std::cout << std::to_string(i) << std::endl;
 					broadcast.Signal();
 				}
 			}
@@ -260,6 +306,7 @@ class PlayerReader : public Thread{
 			{
 				broadcast.Wait();
 				std::cout << "Writing to socket..." << std::endl;
+				std::cout << gameState.toStyledString() << std::endl;
 				ByteArray responseBuffer(gameState.toStyledString());
 				socket.Write(responseBuffer);
 			}		
@@ -277,7 +324,7 @@ class PlayerWriter : public Thread{
 
 		PlayerWriter(Socket &sock, int playerID, DealerThread &dealer)
 			: Thread(1000), socket(sock),
-			data(playerID, 0, 0, {}, 200, true, false), dealer(dealer)
+			data(playerID, 0, 0, {}, 200, 1, false), dealer(dealer)
 		{}
 		
 		virtual long ThreadMain(void) override{
@@ -286,14 +333,15 @@ class PlayerWriter : public Thread{
 			
 			Semaphore mutex("mutex");
 			
-			dealer.addPlayer(data);			
+			Player * data_ptr = &data;
+			dealer.addPlayer(data_ptr);			
 
 			while(true)
 			{
 				ByteArray * buffer = new ByteArray();
 				if (socket.Read(*buffer) == 0) {
 					std::cout << "Player-" << std::to_string(data.id) << " left the game." << std::endl;
-					dealer.removePlayer(data.id);
+					data.isActive = 2;
 					break;
 				}
 
@@ -311,7 +359,8 @@ class PlayerWriter : public Thread{
 
 					if (action == "HIT") {
 						data.cards.push_back(getRandomCard());
-						if (cardSum(data.cards) >= 21)
+						
+						if (doneTurn(data.cards, 21))
 							dealer.incrementNextPlayer();
 					} else {
 						dealer.incrementNextPlayer();
