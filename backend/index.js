@@ -3,6 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
+const TIMEOUT = 20; // number of seconds before booting a player
 const SERVER_PORT = parseInt(process.argv[2] ?? 2000);
 
 const sockets = {}
@@ -62,7 +63,7 @@ app.get("/connect", (req, res) => {
 });
 
 app.get('/update/:id', (req, res) => {
-
+    sockets[req.params.id].timestamp = Date.now()
     res.send(sockets[req.params.id]?.data ?? {})
 });
 
@@ -88,7 +89,12 @@ function manageSocket(sock, id) {
     })
 
     sock.on('close', () => {
-        console.log('Connection closed');
+        console.log('Server has closed.');
+        Object.keys(sockets).forEach(row => {
+            row.data = {
+                status: 4
+            }
+        })
     })
 
     sock.on('error', (err) => {
@@ -98,7 +104,7 @@ function manageSocket(sock, id) {
 
 function checkDisconnectedClients() {
     for (let key in sockets) {
-        if (sockets[key]['timestamp'] < Date.now() - 20000) {
+        if (sockets[key]['timestamp'] < Date.now() - TIMEOUT * 1000) {
             sockets[key]['sock'].end()
             console.log("Disconnected the thingy")
             delete sockets[key]
