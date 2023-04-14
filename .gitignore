@@ -1,4 +1,5 @@
 server/*.o
+server/Server
 
 # Logs
 logs

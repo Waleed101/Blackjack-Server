@@ -19,6 +19,7 @@ import { pid } from "process";
 function Blackjack() {
   // is player connected to the server
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false)
 
   // the game related state
   const [gameState, setGameState] = useState<Game>({
@@ -35,8 +36,8 @@ function Blackjack() {
     seat: -1,
     cards: ["8H", "10C"],
     balance: 200,
-    isActive: false,
-    hasWon: false,
+    isBusted: false,
+    isActive: 0,
     cardSum: "0",
   });
 
@@ -133,9 +134,13 @@ function Blackjack() {
   };
 
   // server polling for game updates
-  /*
+
   useInterval(async () => {
-    const data = await axios.get(`/update/${playerID}`);
+    if (!isConnected) {
+      return
+    }
+
+    const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
 
     // search through players an assign seats
@@ -173,20 +178,16 @@ function Blackjack() {
 
     // update the seats
     setSeats(tempSeats);
+
+    setIsLoaded(true)
   }, POLL_REFRESH_INTERVAL);
-  */
+  
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
-    // const connectionData = await axios.get(URL + "/connect");
-    // const givenId = connectionData.data.id;
-    // setPlayerID(givenId);
-    // const gameData = await axios.get(URL + `/update/${givenId}`);
-    // setGameState(gameData.data);
-
-    //TESTING
-    setPlayerID(1);
-    setGameState(tempGameState);
+    const connectionData = await axios.get(URL + "/connect");
+    setPlayerID(connectionData.data.playerID);
+    setGameState(connectionData.data.gameState);
   };
 
   useEffect(() => {
@@ -197,7 +198,7 @@ function Blackjack() {
 
   return (
     <div className="w-96 max-w-sm h-screen flex items-center flex-col">
-      {!isConnected ? (
+      {!isConnected && !isLoaded ? (
         <div>connecting to the table</div>
       ) : (
         <>
