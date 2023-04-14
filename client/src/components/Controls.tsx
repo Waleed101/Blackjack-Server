@@ -3,15 +3,13 @@ import { FC } from "react";
 interface PlayingControlProps {
   handleDecision: Function;
   type: string;
-  canPlay: boolean;
-  yourSum: number;
+  canPlay?: boolean;
 }
 
 const PlayingControls: FC<PlayingControlProps> = ({
   handleDecision,
   type,
-  canPlay,
-  yourSum,
+  canPlay = false,
 }) => {
   return (
     <div>
@@ -26,20 +24,18 @@ const PlayingControls: FC<PlayingControlProps> = ({
         <>
           <button
             onClick={() => handleDecision("HIT")}
+            disabled={!canPlay}
             className={`text-3xl w-44 h-14 rounded-md ${
-              canPlay && yourSum < 21
-                ? "bg-primary text-bg"
-                : "bg-shadow text-secondary"
+              canPlay ? "bg-primary text-bg" : "bg-shadow text-secondary"
             } transition-colors`}
           >
             hit
           </button>
           <button
-            onClick={() => handleDecision("STAY")}
+            onClick={() => handleDecision("STAND")}
+            disabled={!canPlay}
             className={`text-3xl w-20 h-14 ${
-              canPlay && yourSum <= 21
-                ? "bg-b-secondary text-bg"
-                : "bg-shadow text-secondary"
+              canPlay ? "bg-b-secondary text-bg" : "bg-shadow text-secondary"
             } transition-colors rounded-md ml-4`}
           >
             stay

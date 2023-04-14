@@ -53,7 +53,7 @@ Card getRandomCard() {
 // modify this method to change how cards are dealt
 std::vector<Card> getCards(int numberOfCards) {
 	std::vector<Card> cards;
-
+	
 	for (int i = 0; i < numberOfCards; i++) {
 		cards.push_back(getRandomCard());
 	}
