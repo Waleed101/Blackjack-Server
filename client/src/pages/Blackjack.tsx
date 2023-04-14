@@ -143,6 +143,8 @@ function Blackjack() {
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
 
+    console.log(gameUpdate);
+
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
     const tempSeats = [-1, -1, -1, -1];
