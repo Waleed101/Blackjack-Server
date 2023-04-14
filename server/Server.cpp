@@ -14,6 +14,8 @@ SocketServer * server;
 
 Json::Value gameState(Json::objectValue);
 
+int currentSeatPlaying = 0;
+
 int numberOfPlayers = 0;
 int playerID = 0;
 
@@ -112,6 +114,14 @@ bool doneTurn(std::vector<Card> cards, int max) {
 	*min_element(total.begin(), total.end()) > max;
 }
 
+int getHigherTotal(std::vector<Card> cards) {
+	std::vector<int> total = cardSum(cards);
+
+	int actSum = total[0] > total[1] && total[0] <= 21 ? total[0] : total[1];
+
+	return actSum;
+}
+
 struct Player {
     int id;
     int seat;
@@ -119,7 +129,7 @@ struct Player {
     std::vector<Card> cards;
     int balance;
     int isActive;
-    bool hasWon;
+    int hasWon;
     
     Player(int p_id, int p_seat, int p_bet, std::vector<Card> p_cards, 
 			int p_balance, int p_isActive, bool p_hasWon)
@@ -137,11 +147,14 @@ struct Player {
 		converted["isActive"] = isActive;
 		converted["cardSum"] = formatCardSum(cardSum(cards));
 		converted["isBusted"] = isBusted(cards);
+		converted["hasWon"] = hasWon;
 
 		return converted;
 	}
 };
 
+
+std::vector<Player*> players;
 
 Json::Value from(std::vector<Player*> arr) {
 	Json::Value convertedArr(Json::objectValue);
@@ -153,46 +166,46 @@ Json::Value from(std::vector<Player*> arr) {
 	return convertedArr;
 }
 
+
+void addPlayer(Player * newPlayer) {
+	Semaphore mutex("mutex");
+	mutex.Wait();
+	players.push_back(newPlayer);
+	mutex.Signal();
+}
+
+void removePlayer(int idToRemove) {
+	Semaphore mutex("mutex");
+
+	for (auto it = players.begin(); it != players.end(); ++it) {
+		if ((*it)->id == idToRemove) {
+			players.erase(it);
+			break;
+		}
+	}
+
+	numberOfPlayers--;
+
+	std::cout << "Removing player " << std::to_string(idToRemove) << std::endl;
+}
+
+void incrementNextPlayer() {
+	currentSeatPlaying++;
+}
+		
 class DealerThread : public Thread{
 	private:
 		int TIME_BETWEEN_REFRESHES;
 		
 		std::vector<Card> cards; 
-		std::vector<Player*> players;
 
 		int currentState = 0;
 		int timeRemaining = 10;
-		int currentSeatPlaying = 0;
+		
 
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
 
-		}
-
-		void addPlayer(Player * newPlayer) {
-			Semaphore mutex("mutex");
-			mutex.Wait();
-			players.push_back(newPlayer);
-			mutex.Signal();
-		}
-
-		void removePlayer(int idToRemove) {
-			Semaphore mutex("mutex");
-
-			for (auto it = players.begin(); it != players.end(); ++it) {
-				if ((*it)->id == idToRemove) {
-					players.erase(it);
-					break;
-				}
-			}
-
-			numberOfPlayers--;
-
-			std::cout << "Removing player " << std::to_string(idToRemove) << std::endl;
-		}
-
-		void incrementNextPlayer() {
-			currentSeatPlaying++;
 		}
 
 		void updateGameState() {
@@ -252,9 +265,29 @@ class DealerThread : public Thread{
 					}
 					timeRemaining = 10;
 				} else if (currentState == 1 && currentSeatPlaying == numberOfPlayers) {
+					bool hasDealerBusted = isBusted(cards);
+					for (int i = 0; i < players.size(); i++) {
+						bool hasPlayerBusted = isBusted(players[i]->cards);
+						if (!hasPlayerBusted && ((hasDealerBusted) || (getHigherTotal(players[i]->cards) > getHigherTotal(cards)))) { // winner
+							players[i]->hasWon = 1;
+							players[i]->balance += players[i]->bet * 2;
+						}
+						else if(hasPlayerBusted || (!hasDealerBusted && (getHigherTotal(players[i]->cards) < getHigherTotal(cards)))) { // loser
+							players[i]->hasWon = 0;
+							players[i]->balance -= players[i]->bet;
+						} else { // push
+							players[i]->hasWon = 2;
+							players[i]->balance += players[i]->bet;
+						}
+					}
+
+					timeRemaining = 5;
+					currentState = 2;
+				} else if (currentState == 2) {
 					currentSeatPlaying = 0;
 					currentState = 0;
 					cards = {};
+					timeRemaining = 10;
 				}
 
 			
@@ -334,7 +367,7 @@ class PlayerWriter : public Thread{
 			Semaphore mutex("mutex");
 			
 			Player * data_ptr = &data;
-			dealer.addPlayer(data_ptr);			
+			addPlayer(data_ptr);			
 
 			while(true)
 			{
@@ -361,12 +394,14 @@ class PlayerWriter : public Thread{
 						data.cards.push_back(getRandomCard());
 						
 						if (doneTurn(data.cards, 21))
-							dealer.incrementNextPlayer();
+							incrementNextPlayer();
 					} else {
-						dealer.incrementNextPlayer();
+						incrementNextPlayer();
 					}
 				} else {
-					data.bet = playerAction["betAmount"].asInt();
+					int betAmn = playerAction["betAmount"].asInt();
+					data.balance -= betAmn; 
+					data.bet = betAmn;
 				}
 
 				std::cout << playerAction.toStyledString() << std::endl;
@@ -383,6 +418,7 @@ int main(int argc, char* argv[])
     int port = argc >= 2 ? std::stoi(argv[1]) : 2000;
 
 	DealerThread * dealer = new DealerThread();
+	
     
 	Semaphore mutex("mutex", 1, true);
 
