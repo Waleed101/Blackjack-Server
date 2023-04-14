@@ -39,20 +39,20 @@ body {
   @apply left-64;
 }
 
-#table .spot1{
-  transform: rotate(12deg) translate(-300px) rotate(8deg) scale(0.7); 
+.spot:nth-child(1) {
+  transform: rotate(12deg) translate(-300px) rotate(8deg);
 }
 
-#table .spot2{
-  transform: rotate(4deg) translate(-200px) rotate(8deg) scale(0.7);
+.spot:nth-child(2) {
+  transform: rotate(4deg) translate(-200px) rotate(8deg);
 }
 
-#table .spot3 {
-  transform: rotate(-4deg) translate(200px) rotate(-8deg) scale(0.7);
+.spot:nth-child(3) {
+  transform: rotate(-4deg) translate(200px) rotate(-8deg);
 }
 
-#table .spot4{
-  transform: rotate(-12deg) translate(300px) rotate(-8deg) scale(0.7);
+.spot:nth-child(4) {
+  transform: rotate(-12deg) translate(300px) rotate(-8deg);
 }
 
 /* 
