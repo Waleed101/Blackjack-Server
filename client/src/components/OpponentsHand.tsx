@@ -1,7 +1,7 @@
 import { FC } from "react";
 
 interface OpponentsHandProps {
-  cards: [string];
+  cards: Array<string>;
 }
 
 const OpponentsHand: FC<OpponentsHandProps> = ({ cards }) => {

@@ -9,7 +9,8 @@ module.exports = {
       colors: {
         bg: "#64E48E",
         primary: "#373948",
-        "b-secondary": "#B9AAAA",
+        "b-secondary": "#373948",
+        loading: "#FFF",
         secondary: "#AFAEA9",
         shadow: "#D4D2C9",
         modal: "rgba(212, 210, 201, 0.59)",
@@ -22,8 +23,7 @@ module.exports = {
         getCard: "getCard 0.5s ease-in-out",
         getAlert: "getAlert 1s ease-in-out forwards",
         getAlertWinner: "getAlertWinner 0.6s ease-in-out forwards",
-        actionLoader:
-          "actionLoader 6s cubic-bezier(0.3, 0.27, 0.51, 0.54) forwards",
+        actionLoader: "loading cubic-bezier(0.3, 0.27, 0.51, 0.54) forwards 6s",
       },
       keyframes: {
         getCard: {
@@ -42,7 +42,7 @@ module.exports = {
           "100%": { transform: "translateY(-60px)", opacity: "1" },
           "0%": { transform: "translateY(0px)", opacity: "0" },
         },
-        actionLoader: {
+        loading: {
           "0%": { width: "100%" },
           "100%": { width: "0" },
         },

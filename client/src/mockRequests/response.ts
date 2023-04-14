@@ -46,3 +46,10 @@ export const playingState = {
   timeRemaining: 10,
   currentPlayerTurn: 1,
 };
+
+export const tempGameState = {
+  status: 1,
+  timeRemaining: 0,
+  hasDealerBusted: false,
+  currentPlayerTurn: 1,
+};
