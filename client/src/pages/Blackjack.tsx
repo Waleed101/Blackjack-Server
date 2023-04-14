@@ -67,7 +67,9 @@ function Blackjack() {
   const handleControlDecision = (choice: string) => {
     // clear button -> amount == 0
     if (choice === "CLEAR") {
-      setPlayer({ ...player, bet: 0 });
+      setPlayer((prev) => {
+        return { ...player, balance: prev["balance"] + prev["bet"], bet: 0 };
+      });
     } else {
       // handle player actions
       setCanPlay(false);
@@ -129,7 +131,7 @@ function Blackjack() {
 
     //TESTING
     setPlayerID(1);
-    setGameState(tempGameState);
+    setGameState(bettingState);
   };
 
   useEffect(() => {

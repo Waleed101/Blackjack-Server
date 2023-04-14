@@ -10,8 +10,15 @@ interface BettingProps {
 const Betting: FC<BettingProps> = ({ setPlayer }) => {
   const handleBet = (amount: number) => {
     setPlayer((prev) => {
-      const newBet = prev["bet"] + amount;
-      return { ...prev, bet: newBet };
+      let newBet = prev["bet"];
+      let newBalance = prev["balance"];
+
+      if (prev["balance"] - amount >= 0) {
+        newBet += amount;
+        newBalance -= amount;
+      }
+
+      return { ...prev, balance: newBalance, bet: newBet };
     });
   };
 
