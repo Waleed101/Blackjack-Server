@@ -131,7 +131,7 @@ function Blackjack() {
 
     //TESTING
     setPlayerID(1);
-    setGameState(tempGameState);
+    setGameState(bettingState);
   };
 
   useEffect(() => {
