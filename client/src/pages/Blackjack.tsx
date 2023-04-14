@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInterval } from "../hooks/useInterval";
 import { URL, POLL_REFRESH_INTERVAL } from "../constants/constants";
 import axios from "axios";
@@ -32,6 +32,7 @@ function Blackjack() {
 
   // player's state
   const [playerID, setPlayerID] = useState(0);
+  const playerIdRef = useRef(playerID)
   const [player, setPlayer] = useState<Player>({
     bet: 0,
     seat: -1,
@@ -81,12 +82,14 @@ function Blackjack() {
   // server polling for game updates
 
   useInterval(async () => {
-    if (!isConnected) {
+    if (!isConnected || playerID === 0) {
       return;
     }
 
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
+
+    console.log(gameUpdate);
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -106,6 +109,10 @@ function Blackjack() {
 
     // update player states
     const playerRef = gameUpdate["players"][playerID];
+    if (gameUpdate['status'] === 0) {
+      playerRef['balance'] = player['balance']
+      playerRef['bet'] = player['bet']
+    }
     setPlayer(playerRef);
 
     // update game states
@@ -130,8 +137,10 @@ function Blackjack() {
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
-    setPlayerID(connectionData.data.playerID);
-    setGameState(connectionData.data.gameState);
+    console.log(connectionData.data)
+    playerIdRef.current = connectionData.data.id;
+    setPlayerID(connectionData.data.id);
+    // setGameState(connectionData.data.gameState);
   };
 
   useEffect(() => {
@@ -139,9 +148,11 @@ function Blackjack() {
       setStopLoading(true);
       timer = setTimeout(async () => {
         setStopLoading(false);
-
+        setCanPlay(true)
+        console.log('sending bet request')
         // make the call at the end of the turn
-        await axios.post(URL + `actions/${playerID}`, {
+        console.log(`${URL}/action/${playerIdRef.current}`)
+        await axios.post(URL + `/action/${playerIdRef.current}`, {
           type: "BET",
           betAmount: player["bet"],
         });
@@ -159,7 +170,7 @@ function Blackjack() {
         setCanPlay(true); // allow player to hit/stand again after timer
 
         // make the call at the end of the turn
-        await axios.post(URL + `actions/${playerID}`, {
+        await axios.post(URL + `/action/${playerID}`, {
           type: "TURN",
           action: action,
         });
