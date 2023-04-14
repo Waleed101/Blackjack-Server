@@ -32,7 +32,7 @@ function Blackjack() {
 
   // player's state
   const [playerID, setPlayerID] = useState(0);
-  const playerIdRef = useRef(playerID)
+  const playerIdRef = useRef(playerID);
   const [player, setPlayer] = useState<Player>({
     bet: 0,
     seat: -1,
@@ -94,11 +94,13 @@ function Blackjack() {
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
     const tempSeats = [-1, -1, -1, -1];
+    let i = 0;
     for (let pKey in gameUpdate["players"]) {
-      tempSeats[gameUpdate["players"][pKey]["seat"]] = parseInt(pKey);
+      tempSeats[i] = i; // map the seats to [0, 1, 2, 3]
       if (parseInt(pKey) !== playerID) {
-        otherPlayers[pKey] = gameUpdate["players"][pKey];
+        otherPlayers[i] = gameUpdate["players"][pKey];
       }
+      i++;
     }
 
     // update dealer states
@@ -109,9 +111,9 @@ function Blackjack() {
 
     // update player states
     const playerRef = gameUpdate["players"][playerID];
-    if (gameUpdate['status'] === 0) {
-      playerRef['balance'] = player['balance']
-      playerRef['bet'] = player['bet']
+    if (gameUpdate["status"] === 0) {
+      playerRef["balance"] = player["balance"];
+      playerRef["bet"] = player["bet"];
     }
     setPlayer(playerRef);
 
@@ -137,7 +139,7 @@ function Blackjack() {
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
-    console.log(connectionData.data)
+    console.log(connectionData.data);
     playerIdRef.current = connectionData.data.id;
     setPlayerID(connectionData.data.id);
     // setGameState(connectionData.data.gameState);
@@ -148,10 +150,10 @@ function Blackjack() {
       setStopLoading(true);
       timer = setTimeout(async () => {
         setStopLoading(false);
-        setCanPlay(true)
-        console.log('sending bet request')
+        setCanPlay(true);
+        console.log("sending bet request");
         // make the call at the end of the turn
-        console.log(`${URL}/action/${playerIdRef.current}`)
+        console.log(`${URL}/action/${playerIdRef.current}`);
         await axios.post(URL + `/action/${playerIdRef.current}`, {
           type: "BET",
           betAmount: player["bet"],
@@ -257,14 +259,9 @@ function Blackjack() {
 
           {/* Table Display */}
           <div id="table" className="flex absolute bottom-64">
-            {seats.map((pId, index) => {
+            {seats.map((seatIndex, index) => {
               // define extra ping attribute
-              let pingClass = "";
-              pId === gameState["currentPlayerTurn"]
-                ? (pingClass = "animate-ping")
-                : null;
-
-              if (pId === playerID) {
+              if (seatIndex === player["seat"]) {
                 return (
                   // work here to add some nice background, maybe darken with text & cross?
                   <>
@@ -272,33 +269,33 @@ function Blackjack() {
                       key={index}
                       className="spot w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-75 bg-slate-800 text-white flex justify-center items-center"
                     >
-                      {pId === gameState["currentPlayerTurn"] ? (
+                      {seatIndex === gameState["currentPlayerTurn"] ? (
                         <PingAnimation top={"-top-6"} right={"right-[40%]"} />
                       ) : null}
                       YOUR SPOT
                     </div>
                   </>
                 );
-              } else if (pId !== -1) {
+              } else if (seatIndex !== -1) {
                 // pass the opponents pId and associated cards here!
                 return (
                   <>
                     {/* this is where the opponents hand is rendered it needs the styling  */}
                     <div className={`spot`}>
-                      {pId === gameState["currentPlayerTurn"] ? (
+                      {seatIndex === gameState["currentPlayerTurn"] ? (
                         <PingAnimation top={"top-4"} right={"right-[50%]"} />
                       ) : null}
                       <OpponentsHand
                         cards={
                           gameState.otherPlayers
-                            ? gameState.otherPlayers[pId]["cards"]
+                            ? gameState.otherPlayers[seatIndex]["cards"]
                             : [""]
                         }
                       />
                     </div>
                   </>
                 );
-              } else if (pId === -1) {
+              } else if (seatIndex === -1) {
                 return (
                   <div
                     className={`spot w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50`}
@@ -390,7 +387,9 @@ function Blackjack() {
               <Controls
                 handleDecision={handleControlDecision}
                 type="PLAYING"
-                canPlay={gameState["currentPlayerTurn"] === playerID && canPlay}
+                canPlay={
+                  gameState["currentPlayerTurn"] === player["seat"] && canPlay
+                }
               />
             )}
           </div>
