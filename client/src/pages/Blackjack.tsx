@@ -81,7 +81,7 @@ function Blackjack() {
   // server polling for game updates
 
   useInterval(async () => {
-    if (!isConnected) {
+    if (!isConnected || playerID === 0) {
       return;
     }
 
@@ -108,6 +108,10 @@ function Blackjack() {
 
     // update player states
     const playerRef = gameUpdate["players"][playerID];
+    if (gameUpdate['status'] === 0) {
+      playerRef['balance'] = player['balance']
+      playerRef['bet'] = player['bet']
+    }
     setPlayer(playerRef);
 
     // update game states
@@ -132,8 +136,9 @@ function Blackjack() {
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
-    setPlayerID(connectionData.data.playerID);
-    setGameState(connectionData.data.gameState);
+    console.log(connectionData.data)
+    setPlayerID(connectionData.data.id);
+    // setGameState(connectionData.data.gameState);
   };
 
   useEffect(() => {
@@ -141,13 +146,21 @@ function Blackjack() {
       setStopLoading(true);
       timer = setTimeout(async () => {
         setStopLoading(false);
+        setCanPlay(true)        
+      }, 10000);
 
-        // make the call at the end of the turn
-        await axios.post(URL + `actions/${playerID}`, {
+      const postBet = async () => {
+        console.log(`${URL}/action/${playerID}`)
+        console.log(player['bet'])
+        await axios.post(URL + `/action/${playerID}`, {
           type: "BET",
           betAmount: player["bet"],
         });
-      }, 10000);
+      }
+
+      if (stopLoading === true){
+        postBet()
+      }
     }
   }, [gameState["status"]]);
 
@@ -161,7 +174,7 @@ function Blackjack() {
         setCanPlay(true); // allow player to hit/stand again after timer
 
         // make the call at the end of the turn
-        await axios.post(URL + `actions/${playerID}`, {
+        await axios.post(URL + `/action/${playerID}`, {
           type: "TURN",
           action: action,
         });

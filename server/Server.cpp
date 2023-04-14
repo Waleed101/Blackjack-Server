@@ -80,7 +80,7 @@ std::vector<Card> getCards(int numberOfCards)
 		while (count == 6)
 		{
 			newCard = getRandomCard();
-			int count = 0;
+			count = 0;
 			for (int i = 0; i < dealtCards.size(); i++)
 			{
 				if (dealtCards[i].num == newCard.num && dealtCards[i].suit == newCard.suit)
@@ -240,7 +240,6 @@ class DealerThread : public Thread{
 
 		int currentState = 0;
 		int timeRemaining = 10;
-		
 
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
@@ -252,98 +251,95 @@ class DealerThread : public Thread{
 			gameState["hasDealerBusted"] = isBusted(cards);
 			gameState["status"] = currentState;
 			gameState["timeRemaining"] = timeRemaining;
-			gameState["turnID"] = currentSeatPlaying;
+			gameState["currentPlayerTurn"] = currentSeatPlaying;
 			gameState["dealerSum"] = formatCardSum(cardSum(cards));
 			gameState["players"] = from(players);
 		}
 
 		virtual long ThreadMain(void) override{
-			std::cout << "Starting sempahores" << std::endl;
 			Semaphore broadcast("broadcast", 0, true);
 			Semaphore mutex("mutex");
-			
-			std::cout << "Entering loop" << std::endl;
 
 			while(true)
 			{
-				std::cout << "Sleeping" << std::endl;
 				sleep(TIME_BETWEEN_REFRESHES);
-
-				std::cout << "Finished sleeping" << std::endl;
 				timeRemaining -= TIME_BETWEEN_REFRESHES;
 
-			mutex.Wait();
+				mutex.Wait();
 
-				if (timeRemaining <= 0) {
-					
-			std::cout << "Entering state change" << std::endl;
+				if (timeRemaining <= 0) {	
+					if (currentState == 1) {
+						currentSeatPlaying++;
+					}
+
 					if (currentState == 0) {
-						currentState = 1;
-						if (dealtCards.size() >= 156)
-						{
-							std::cout << "Reset the deck" << std::endl;
-							dealtCards.clear();
-						}
-					cards = getCards(2);
+						if (numberOfPlayers > 0) {
 
-						for (int i = 0; i < players.size(); i++) {
-							if (players[i]->isActive == 1)
-								players[i]->isActive = 0;
+							currentState = 1;
+							if (dealtCards.size() >= 156)
+							{
+								dealtCards.clear();
+							}
+							
+							cards = getCards(2);
 
-							if (players[i]->isActive == 0)
-								players[i]->cards = getCards(2);
-							else if (players[i]->isActive == 2)
-								removePlayer(players[i]->id);
-						}
+							for (int i = 0; i < players.size(); i++) {
+								if (players[i]->isActive == 1)
+									players[i]->isActive = 0;
 
-						currentSeatPlaying = 0;
-					} else {
-						if (currentSeatPlaying == numberOfPlayers) {
+								if (players[i]->isActive == 0)
+									players[i]->cards = getCards(2);
+								else if (players[i]->isActive == 2)
+									removePlayer(players[i]->id);
+							}
+
 							currentSeatPlaying = 0;
-							currentState = 0;
-							cards = {};
 						} else {
-							currentSeatPlaying++;
+							if (currentSeatPlaying == numberOfPlayers) {
+								currentSeatPlaying = 1;
+								currentState = 0;
+								cards = {};
+							} else {
+								currentSeatPlaying++;
+							}
 						}
+					
+						// timeRemaining = 10;
 					}
-					timeRemaining = 10;
-				} else if (currentState == 1 && currentSeatPlaying == numberOfPlayers) {
-					bool hasDealerBusted = isBusted(cards);
-					for (int i = 0; i < players.size(); i++) {
-						bool hasPlayerBusted = isBusted(players[i]->cards);
-						if (!hasPlayerBusted && ((hasDealerBusted) || (getHigherTotal(players[i]->cards) > getHigherTotal(cards)))) { // winner
-							players[i]->hasWon = 1;
-							players[i]->balance += players[i]->bet * 2;
+					else if (currentState == 1 && currentSeatPlaying > numberOfPlayers) {
+						bool hasDealerBusted = isBusted(cards);
+						for (int i = 0; i < players.size(); i++) {
+							bool hasPlayerBusted = isBusted(players[i]->cards);
+							if (!hasPlayerBusted && ((hasDealerBusted) || (getHigherTotal(players[i]->cards) > getHigherTotal(cards)))) { // winner
+								players[i]->hasWon = 1;
+								players[i]->balance += players[i]->bet * 2;
+							}
+							else if(hasPlayerBusted || (!hasDealerBusted && (getHigherTotal(players[i]->cards) < getHigherTotal(cards)))) { // loser
+								players[i]->hasWon = 0;
+								players[i]->balance -= players[i]->bet;
+							} else { // push
+								players[i]->hasWon = 2;
+								players[i]->balance += players[i]->bet;
+							}
 						}
-						else if(hasPlayerBusted || (!hasDealerBusted && (getHigherTotal(players[i]->cards) < getHigherTotal(cards)))) { // loser
-							players[i]->hasWon = 0;
-							players[i]->balance -= players[i]->bet;
-						} else { // push
-							players[i]->hasWon = 2;
-							players[i]->balance += players[i]->bet;
-						}
+
+						// timeRemaining = 5;
+						currentState = 2;
+					} else if (currentState == 2) {
+						currentSeatPlaying = 0;
+						currentState = 0;
+						cards = {};
+						// timeRemaining = 10;
 					}
 
-					timeRemaining = 5;
-					currentState = 2;
-				} else if (currentState == 2) {
-					currentSeatPlaying = 0;
-					currentState = 0;
-					cards = {};
 					timeRemaining = 10;
 				}
 
-			
-			std::cout << "Updating the game state" << std::endl;
 				updateGameState();
 
-			mutex.Signal();
+				mutex.Signal();
 
-			
-			std::cout << "Getting everyone into it" << std::endl;
 				for(int i = 0; i < numberOfPlayers; i++) {
-					
-			std::cout << std::to_string(i) << std::endl;
 					broadcast.Signal();
 				}
 			}
@@ -437,7 +433,7 @@ class PlayerWriter : public Thread
 				if (playerAction["type"].asString() == "TURN")
 				{
 					std::string action = playerAction["action"].asString();
-
+						std::cout << action << std::endl;
 						if (action == "HIT") {
 							data.cards.push_back(getRandomCard());
 							

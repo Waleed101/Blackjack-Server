@@ -54,9 +54,12 @@ app.get("/connect", (req, res) => {
 
         // data will hold the broadcast message
         // thats the reference to the socket
-
         sockets[playerID] = {sock: sock, data: gameState, timestamp: Date.now()}
-        res.send(procData)
+        const resp = {
+            id: playerID
+        }
+        console.log(resp)
+        res.send(JSON.stringify(resp))
     }).catch((err) => {
         console.log(err)
     })
@@ -69,6 +72,7 @@ app.get('/update/:id', (req, res) => {
 
 app.post('/action/:id', (req, res) => {
     console.log(`Client-${req.params.id} performed an action`)
+    console.log(req.body)
     sockets[req.params.id]['sock'].write(Buffer.from(JSON.stringify(req.body)))
 })
 
