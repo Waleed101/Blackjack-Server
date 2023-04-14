@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInterval } from "../hooks/useInterval";
 import { URL, POLL_REFRESH_INTERVAL } from "../constants/constants";
 import axios from "axios";
@@ -32,6 +32,7 @@ function Blackjack() {
 
   // player's state
   const [playerID, setPlayerID] = useState(0);
+  const playerIdRef = useRef(playerID)
   const [player, setPlayer] = useState<Player>({
     bet: 0,
     seat: -1,
@@ -137,6 +138,7 @@ function Blackjack() {
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
     console.log(connectionData.data)
+    playerIdRef.current = connectionData.data.id;
     setPlayerID(connectionData.data.id);
     // setGameState(connectionData.data.gameState);
   };
@@ -146,21 +148,15 @@ function Blackjack() {
       setStopLoading(true);
       timer = setTimeout(async () => {
         setStopLoading(false);
-        setCanPlay(true)        
-      }, 10000);
-
-      const postBet = async () => {
-        console.log(`${URL}/action/${playerID}`)
-        console.log(player['bet'])
-        await axios.post(URL + `/action/${playerID}`, {
+        setCanPlay(true)
+        console.log('sending bet request')
+        // make the call at the end of the turn
+        console.log(`${URL}/action/${playerIdRef.current}`)
+        await axios.post(URL + `/action/${playerIdRef.current}`, {
           type: "BET",
           betAmount: player["bet"],
         });
-      }
-
-      if (stopLoading === true){
-        postBet()
-      }
+      }, 10000);
     }
   }, [gameState["status"]]);
 
