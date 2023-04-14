@@ -7,13 +7,14 @@ import axios from "axios";
 import { Card } from "../types/card";
 import { Broadcast, Player, Game, Dealer } from "../types/broadcastResponse";
 import { Decision } from "../types/decisionRequest";
-import { bettingState, playingState } from "../mockRequests/response";
+import { bettingState, playingState, tempGameState } from "../mockRequests/response";
 
 // components
 import Controls from "../components/Controls";
 import Betting from "../components/Betting";
 import PlayersHand from "../components/PlayersHand";
 import OpponentsHand from "../components/OpponentsHand";
+import { pid } from "process";
 
 function Blackjack() {
   // is player connected to the server
@@ -24,7 +25,7 @@ function Blackjack() {
     status: 0,
     timeRemaining: 0,
     hasDealerBusted: false,
-    currentPlayerTurn: 0,
+    currentPlayerTurn: 4,
   });
 
   // player's state
@@ -32,7 +33,7 @@ function Blackjack() {
   const [player, setPlayer] = useState<Player>({
     bet: 0,
     seat: -1,
-    cards: [""],
+    cards: ["8H", "10C"],
     balance: 200,
     isActive: false,
     hasWon: false,
@@ -46,7 +47,7 @@ function Blackjack() {
   });
 
   // seats
-  const [seats, setSeats] = useState([-1, -1, -1, -1]);
+  const [seats, setSeats] = useState([1, 2, 3, -1]);
 
   // timer for move
   const [seconds, setSeconds] = useState(0);
@@ -185,7 +186,7 @@ function Blackjack() {
 
     //TESTING
     setPlayerID(1);
-    setGameState(playingState);
+    setGameState(tempGameState);
   };
 
   useEffect(() => {
@@ -217,9 +218,8 @@ function Blackjack() {
                 className="flex justify-center mt-14 relative scale-[0.8] flex-wrap w-[300px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                    winner == "you" ? "line-through" : ""
-                  } `}
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "you" ? "line-through" : ""
+                    } `}
                 >
                   {/* more logic can go here to strike through value when busted */}
                   {dealer["cardSum"]}
@@ -268,34 +268,119 @@ function Blackjack() {
           {/* Table Display */}
           <div id="table" className="flex absolute bottom-64">
             {seats.map((pId, index) => {
+              console.log(index, pId)
+              if (gameState.currentPlayerTurn!=0){
+                let pIdTurn = gameState.currentPlayerTurn
+                return(
+                  <div className={`spot${pIdTurn} animate-ping` }></div>
+                )
+              }
               if (pId === playerID) {
                 return (
                   // work here to add some nice background, maybe darken with text & cross?
-                  <div className="w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50">
-                    My hand
-                  </div>
+
+                  <>
+                    <div className="spot1 animate-ping w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50">
+                      My hand
+
+                    </div>
+
+                  </>
                 );
               } else if (pId !== -1) {
+                console.log(index)
                 // pass the opponents pId and associated cards here!
+                
                 return (
                   <>
                     {pId === gameState["currentPlayerTurn"] ? (
                       // MAKE THIS INTO A DOT, mark active player
-                      <div>0</div>
+                      <></>
                     ) : null}
-                    <OpponentsHand
-                      cards={
-                        gameState.otherPlayers
-                          ? gameState.otherPlayers[pId]["cards"]
-                          : [""]
-                      }
-                    />
+
+                    {/* this is where the opponents hand is rendered it needs the styling  */}
+
+                    {/* <div className="relative scale-[0.7] transform: rotate(4deg) translate(-200px) rotate(8deg) ;"> */}
+                    {gameState.otherPlayers ? (
+                      // Object.values(gameState.otherPlayers).map((player) => { 
+
+                      // })
+                       
+                      
+                      gameState.otherPlayers[pId].seat === 1 && gameState.otherPlayers[pId].isActive!=false? (
+
+                        <div className={`spot1 flex justify-center items center`}>
+                          <OpponentsHand
+
+                            cards={
+
+                              gameState.otherPlayers
+                                ? gameState.otherPlayers[pId]["cards"]
+                                : [""]
+                            }
+                          />
+
+
+                        </div>
+
+                      ) : gameState.otherPlayers[pId].seat===2 && gameState.otherPlayers[pId].isActive!=false?(
+                        <div className={`spot2 flex justify-center items center`}>
+                          <OpponentsHand
+
+                            cards={
+
+                              gameState.otherPlayers
+                                ? gameState.otherPlayers[pId]["cards"]
+                                : [""]
+                            }
+                          />
+
+
+                        </div>
+                      )  :  gameState.otherPlayers[pId].seat===3 && gameState.otherPlayers[pId].isActive!=false?(
+                        <div className={`spot3 flex justify-center items center`}>
+                        <OpponentsHand
+
+                          cards={
+
+                            gameState.otherPlayers
+                              ? gameState.otherPlayers[pId]["cards"]
+                              : [""]
+                          }
+                        />
+
+
+                      </div>
+                      ): gameState.otherPlayers[pId].seat === 4 && gameState.otherPlayers[pId].isActive!=false?(
+                        <div className={`spot4 flex justify-center items center`}>
+                        <OpponentsHand
+
+                          cards={
+
+                            gameState.otherPlayers
+                              ? gameState.otherPlayers[pId]["cards"]
+                              : [""]
+                          }
+                        />
+
+
+                      </div>
+                      ): null):null}
+
+
                   </>
+
                 );
-              } else {
-                return (
-                  <div className="w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50"></div>
-                );
+              } else if (pId === -1 ){
+                let spotNum;
+                spotNum = index
+                     return (
+                      <>
+                       <div className= {`spot${index} w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50`}>Nobody to play with :/</div>
+                       </> 
+                       );
+                  
+                
               }
             })}
           </div>
@@ -321,29 +406,24 @@ function Blackjack() {
                 className="flex justify-center mt-14 relative scale-[0.7] flex-wrap w-[350px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${
-                    winner == "dealer" ? "line-through" : ""
-                  }`}
+                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "dealer" ? "line-through" : ""
+                    }`}
                 >
                   {player["cardSum"]}
                 </h1>
 
-                {player["cards"].map((card, index) => {
-                  let cardArr = card.split("");
-                  const suit = cardArr.pop();
-                  const cardNo = cardArr.join("");
+                <PlayersHand
 
-                  const sendToAbove =
-                    index > 2 ? `absolute sendToAbove -bottom-32` : "";
-                  return (
-                    <div
-                      key={index}
-                      className={`flex justify-center items-center text-6xl text-[#6D5C5C] bg-[url('/src/assets/cards/card.png')] bg-cover w-32 h-48 -ml-6 animate-getCard -rotate-2 ${sendToAbove}`}
-                    >
-                      {cardNo}
-                    </div>
-                  );
-                })}
+                  cards={
+                    player != null
+                      ? player["cards"]
+                      : [""]
+                  }
+
+                />
+
+
+
 
                 {/* This logic might get changed if aces are introduced ie 17/7 */}
                 {parseInt(player["cardSum"]) > 21 ? (

@@ -3,7 +3,7 @@ export type Broadcast = {
   players: {
     [key: number]: Player;
   };
-  dealerCards: [string];
+  dealerCards: Array<string>;
   dealerSum: string;
   hasDealerBusted: boolean;
   timeRemaining: number;
@@ -44,7 +44,7 @@ export type Player = {
   seat: number; // a number 0 - 3
   name?: string;
   bet: number;
-  cards: [string]; // 9S, 11H (number|suit)
+  cards: Array<string>; // 9S, 11H (number|suit)
   balance: number;
   isActive: boolean; // the marker for if the player is in the round
   hasWon: boolean;
@@ -52,6 +52,6 @@ export type Player = {
 };
 
 export type Dealer = {
-  dealerCards: [string];
+  dealerCards: Array<string>;
   cardSum: string;
 };
