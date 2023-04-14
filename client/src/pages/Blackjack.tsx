@@ -269,18 +269,21 @@ function Blackjack() {
           <div id="table" className="flex absolute bottom-64">
             {seats.map((pId, index) => {
               console.log(index, pId)
-              if (gameState.currentPlayerTurn!=0){
-                let pIdTurn = gameState.currentPlayerTurn
-                return(
-                  <div className={`spot${pIdTurn} animate-ping` }></div>
-                )
-              }
+              // if (gameState.currentPlayerTurn!=0){
+              //   let pIdTurn = gameState.currentPlayerTurn
+              //   return(
+              //     <>
+              //     <div className={`spot3 animate-ping` }></div>
+              //     </>
+                
+              //   )
+              // }
               if (pId === playerID) {
                 return (
                   // work here to add some nice background, maybe darken with text & cross?
 
                   <>
-                    <div className="spot1 animate-ping w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50">
+                    <div className="spot1 w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50">
                       My hand
 
                     </div>
@@ -295,7 +298,9 @@ function Blackjack() {
                   <>
                     {pId === gameState["currentPlayerTurn"] ? (
                       // MAKE THIS INTO A DOT, mark active player
-                      <></>
+                      <>
+                      <div className={`spot1 animate-ping `}></div>
+                      </>
                     ) : null}
 
                     {/* this is where the opponents hand is rendered it needs the styling  */}

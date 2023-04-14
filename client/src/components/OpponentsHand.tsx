@@ -25,7 +25,7 @@ const PlayersHand: FC<PlayersHandProps> =  ({cards}) => {
         className={`flex justify-center items-center text-6xl text-[#6D5C5C] bg-cover w-[9rem] h-[14rem] -ml-6 animate-getCard -rotate-8 ${sendToAbove}`}
       >
         {cardNo}
-        {suit}
+        
       </div>
     );
   })}
