@@ -205,7 +205,7 @@ class DealerThread : public Thread{
 
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
-
+			Thread::Start();
 		}
 
 		void updateGameState() {
@@ -216,28 +216,24 @@ class DealerThread : public Thread{
 			gameState["turnID"] = currentSeatPlaying;
 			gameState["dealerSum"] = formatCardSum(cardSum(cards));
 			gameState["players"] = from(players);
+			std::cout << gameState.toStyledString() << std::endl;
 		}
 
 		virtual long ThreadMain(void) override{
-			std::cout << "Starting sempahores" << std::endl;
-			Semaphore broadcast("broadcast", 0, true);
+			Semaphore broadcast("broadcast");
 			Semaphore mutex("mutex");
 			
-			std::cout << "Entering loop" << std::endl;
 
 			while(true)
 			{
-				std::cout << "Sleeping" << std::endl;
 				sleep(TIME_BETWEEN_REFRESHES);
 
-				std::cout << "Finished sleeping" << std::endl;
 				timeRemaining -= TIME_BETWEEN_REFRESHES;
 
 				mutex.Wait();
 
 				if (timeRemaining <= 0) {
 					
-			std::cout << "Entering state change" << std::endl;
 					if (currentState == 0) {
 						currentState = 1;
 
@@ -291,13 +287,11 @@ class DealerThread : public Thread{
 				}
 
 			
-			std::cout << "Updating the game state" << std::endl;
 				updateGameState();
 
 				mutex.Signal();
 
 			
-			std::cout << "Getting everyone into it" << std::endl;
 				for(int i = 0; i < numberOfPlayers; i++) {
 					
 			std::cout << std::to_string(i) << std::endl;
@@ -317,6 +311,7 @@ class PlayerReader : public Thread{
 		
 		PlayerReader(Socket & sock, int playerID, DealerThread &dealer):Thread(1000),socket(sock),dealer(dealer){
 			this->playerID = playerID;
+			Thread::Start();
 		}
 		
 		virtual long ThreadMain(void) override{
@@ -326,8 +321,6 @@ class PlayerReader : public Thread{
 			Semaphore broadcast("broadcast");
 
 			Json::Value initalBroadcast(Json::objectValue);
-
-			dealer.updateGameState();
 
 			initalBroadcast["gameState"] = gameState;
 			initalBroadcast["playerID"] = this->playerID;
@@ -358,7 +351,9 @@ class PlayerWriter : public Thread{
 		PlayerWriter(Socket &sock, int playerID, DealerThread &dealer)
 			: Thread(1000), socket(sock),
 			data(playerID, 0, 0, {}, 200, 1, false), dealer(dealer)
-		{}
+		{
+			Thread::Start();
+		}
 		
 		virtual long ThreadMain(void) override{
 			
@@ -405,7 +400,6 @@ class PlayerWriter : public Thread{
 				}
 
 				std::cout << playerAction.toStyledString() << std::endl;
-				std::cout << data.bet << std::endl;
 				mutex.Signal();
 			}		
 		}
@@ -419,8 +413,8 @@ int main(int argc, char* argv[])
 
 	DealerThread * dealer = new DealerThread();
 	
-    
 	Semaphore mutex("mutex", 1, true);
+	Semaphore broadcast("broadcast", 0, true);
 
     server = new SocketServer(port);
     

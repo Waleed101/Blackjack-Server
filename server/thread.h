@@ -18,6 +18,8 @@ private:
 
 protected:
     Sync::Event terminationEvent;
+    Sync::Event startEvent;
+    void Start();
 
 private:
     Thread(Thread const &){}
