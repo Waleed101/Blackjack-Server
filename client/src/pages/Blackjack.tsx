@@ -1,38 +1,41 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInterval } from "../hooks/useInterval";
 import { URL, POLL_REFRESH_INTERVAL } from "../constants/constants";
 import axios from "axios";
 
 //types
-import { Card } from "../types/card";
 import { Broadcast, Player, Game, Dealer } from "../types/broadcastResponse";
-import { Decision } from "../types/decisionRequest";
-import { bettingState, playingState } from "../mockRequests/response";
+import {
+  bettingState,
+  playingState,
+  tempGameState,
+} from "../mockRequests/response";
 
 // components
 import Controls from "../components/Controls";
 import Betting from "../components/Betting";
-import PlayersHand from "../components/PlayersHand";
 import OpponentsHand from "../components/OpponentsHand";
+import PingAnimation from "../components/PingAnimation";
 
 function Blackjack() {
   // is player connected to the server
   const [isConnected, setIsConnected] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false);
 
   // the game related state
   const [gameState, setGameState] = useState<Game>({
     status: 0,
     timeRemaining: 0,
     hasDealerBusted: false,
-    currentPlayerTurn: 0,
+    currentPlayerTurn: 4,
   });
 
   // player's state
   const [playerID, setPlayerID] = useState(0);
+  const playerIdRef = useRef(playerID);
   const [player, setPlayer] = useState<Player>({
     bet: 0,
-    seat: -1,
+    seat: 4, // a seat above the allowable
     cards: [""],
     balance: 200,
     isBusted: false,
@@ -42,7 +45,7 @@ function Blackjack() {
 
   // dealer
   const [dealer, setDealer] = useState<Dealer>({
-    dealerCards: [""],
+    dealerCards: ["", ""],
     cardSum: "0",
   });
 
@@ -50,106 +53,56 @@ function Blackjack() {
   const [seats, setSeats] = useState([-1, -1, -1, -1]);
 
   // timer for move
-  const [seconds, setSeconds] = useState(0);
+  const [action, setAction] = useState("STAND");
+  const [canPlay, setCanPlay] = useState(true);
+  const [timeRemaining, setTimeRemaing] = useState(13)
 
-  // mostrar/ esconder o timer no html
-  const [stopLoading, setStopLoading] = useState(true);
+  // loading switch
+  const [stopLoading, setStopLoading] = useState(false);
 
   // timeoutFunction
-  let timer: any;
+  let timer: NodeJS.Timer;
 
   // define a winner
   const [winner, setWinner] = useState<"dealer" | "you" | "tie" | "">("");
 
-  // controls the timer
-  useEffect(() => {
-    // if (canPlay && gameStarted) {
-    //   timer = setInterval(() => {
-    //     setSeconds(seconds + 1);
-    //   }, 1000);
-    //   setStopLoading(true);
-    //   if (seconds >= 6) {
-    //     clearInterval(timer);
-    //     setStopLoading(false);
-    //     setCanPlay(false);
-    //     setTimeout(() => {
-    //       // dealerPlay();
-    //     }, 1000);
-    //   }
-    //   if (yourSum >= 21) {
-    //     setStopLoading(false);
-    //     setSeconds(10);
-    //   }
-    //   return () => clearInterval(timer);
-    // }
-  }, [seconds, gameState["currentPlayerTurn"]]);
-
-  // caso o jogador decida nao comprar cartas
-  const stand = () => {
-    // if (canPlay) {
-    //   clearInterval(timer);
-    //   setSeconds(10);
-    //   setCanPlay(false);
-    //   setStopLoading(false);
-    // } else {
-    //   console.log("you cant play");
-    // }
-  };
-
-  // pedir carta caso consiga jogar
-  const hit = () => {
-    // if (canPlay) {
-    //   clearInterval(timer);
-    //   setSeconds(10);
-    //   gameStarted ? null : setGameStarted(true);
-    //   if (yourSum < 21) {
-    //     const card = new Card();
-    //     const newDeck = yourDeck;
-    //     const newSum = yourSum + card.value;
-    //     newDeck.push(card);
-    //     setYourSum(newSum);
-    //     setYourDeck(newDeck);
-    //     setSeconds(0);
-    //     setStopLoading(false);
-    //   }
-    // } else {
-    //   console.log("you cant play");
-    // }
-  };
-
   // bet handler
   const handleControlDecision = (choice: string) => {
     // clear button -> amount == 0
-    switch (choice) {
-      case "CLEAR":
-        setPlayer({ ...player, bet: 0 });
-      case "HIT":
-        // handle hit logic
-        hit();
-      case "STAND":
-        // handle stand logic
-        stand();
+    if (choice === "CLEAR") {
+      setPlayer((prev) => {
+        return { ...player, balance: prev["balance"] + prev["bet"], bet: 0 };
+      });
+    } else {
+      // handle player actions
+      setCanPlay(false);
+      setAction(choice);
     }
   };
 
   // server polling for game updates
 
   useInterval(async () => {
-    if (!isConnected) {
-      return
+    if (!isConnected || playerID === 0) {
+      return;
     }
 
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
 
+    console.log(gameUpdate);
+    setTimeRemaing(gameUpdate['timeRemaining'])
+
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
     const tempSeats = [-1, -1, -1, -1];
+    let i = 0;
     for (let pKey in gameUpdate["players"]) {
-      tempSeats[gameUpdate["players"][pKey]["seat"]] = parseInt(pKey);
+      tempSeats[i] = i; // map the seats to [0, 1, 2, 3]
       if (parseInt(pKey) !== playerID) {
-        otherPlayers[pKey] = gameUpdate["players"][pKey];
+        otherPlayers[i] = gameUpdate["players"][pKey];
       }
+      i++;
     }
 
     // update dealer states
@@ -160,6 +113,10 @@ function Blackjack() {
 
     // update player states
     const playerRef = gameUpdate["players"][playerID];
+    if (gameUpdate["status"] === 0) {
+      playerRef["balance"] = player["balance"];
+      playerRef["bet"] = player["bet"];
+    }
     setPlayer(playerRef);
 
     // update game states
@@ -178,16 +135,52 @@ function Blackjack() {
     // update the seats
     setSeats(tempSeats);
 
-    setIsLoaded(true)
+    setIsLoaded(true);
   }, POLL_REFRESH_INTERVAL);
-  
 
   // connect to game, fetch table id + table state
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
-    setPlayerID(connectionData.data.playerID);
-    setGameState(connectionData.data.gameState);
+    console.log(connectionData.data);
+    playerIdRef.current = connectionData.data.id;
+    setPlayerID(connectionData.data.id);
+    // setGameState(connectionData.data.gameState);
   };
+
+  useEffect(() => {
+    if (gameState["status"] === 0) {
+      setStopLoading(true);
+      timer = setTimeout(async () => {
+        setStopLoading(false);
+        setCanPlay(true);
+        console.log("sending bet request");
+        // make the call at the end of the turn
+        console.log(`${URL}/action/${playerIdRef.current}`);
+        await axios.post(URL + `/action/${playerIdRef.current}`, {
+          type: "BET",
+          betAmount: player["bet"],
+        });
+      }, (timeRemaining - 1) * 1000);
+    }
+  }, [gameState["status"]]);
+
+  // controls the timer during playing state
+  useEffect(() => {
+    if (gameState["currentPlayerTurn"] === playerID) {
+      // start the timer and wait till it finishes to set next actions
+      setStopLoading(true);
+      timer = setTimeout(async () => {
+        setStopLoading(false);
+        setCanPlay(true); // allow player to hit/stand again after timer
+
+        // make the call at the end of the turn
+        await axios.post(URL + `/action/${playerID}`, {
+          type: "TURN",
+          action: action,
+        });
+      }, (timeRemaining - 1) * 1000);
+    }
+  }, [player["cardSum"], gameState["currentPlayerTurn"]]);
 
   useEffect(() => {
     setIsConnected(false);
@@ -211,15 +204,16 @@ function Blackjack() {
             </>
           ) : (
             <>
-              <h1 className="text-3xl text-primary">Dealer</h1>
+              <h1 className="text-3xl text-primary">DEALER</h1>
               {/* dealer hand */}
               <div
                 id="dealerHand"
                 className="flex justify-center mt-14 relative scale-[0.8] flex-wrap w-[300px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "you" ? "line-through" : ""
-                    } `}
+                  className={`text-3xl text-primary absolute -top-8 -right-0 ${
+                    winner == "you" ? "line-through" : ""
+                  } `}
                 >
                   {/* more logic can go here to strike through value when busted */}
                   {dealer["cardSum"]}
@@ -261,40 +255,53 @@ function Blackjack() {
                   }
                 })}
               </div>
-              <div className="bg-[url('/src/assets/cards/dealerShadow.png')] bg-inherit bg-no-repeat w-40 h-4 mt-10"></div>
+              <div className="bg-[url('/src/assets/cards/dealerShadow.png')] bg-cover bg-inherit bg-no-repeat w-40 h-4 mt-10 opacity-25 blur-sm"></div>
             </>
           )}
 
           {/* Table Display */}
           <div id="table" className="flex absolute bottom-64">
-            {seats.map((pId, index) => {
-              if (pId === playerID) {
+            {seats.map((seatIndex, index) => {
+              // define extra ping attribute
+              if (seatIndex === player["seat"]) {
                 return (
                   // work here to add some nice background, maybe darken with text & cross?
-                  <div className="w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50">
-                    My hand
-                  </div>
+                  <>
+                    <div
+                      key={index}
+                      className="spot w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-75 bg-slate-800 text-white flex justify-center items-center"
+                    >
+                      {seatIndex === gameState["currentPlayerTurn"] ? (
+                        <PingAnimation top={"-top-6"} right={"right-[40%]"} />
+                      ) : null}
+                      YOUR SPOT
+                    </div>
+                  </>
                 );
-              } else if (pId !== -1) {
+              } else if (seatIndex !== -1) {
                 // pass the opponents pId and associated cards here!
                 return (
                   <>
-                    {pId === gameState["currentPlayerTurn"] ? (
-                      // MAKE THIS INTO A DOT, mark active player
-                      <div>0</div>
-                    ) : null}
-                    <OpponentsHand
-                      cards={
-                        gameState.otherPlayers
-                          ? gameState.otherPlayers[pId]["cards"]
-                          : [""]
-                      }
-                    />
+                    {/* this is where the opponents hand is rendered it needs the styling  */}
+                    <div className={`spot`}>
+                      {seatIndex === gameState["currentPlayerTurn"] ? (
+                        <PingAnimation top={"top-4"} right={"right-[50%]"} />
+                      ) : null}
+                      <OpponentsHand
+                        cards={
+                          gameState.otherPlayers
+                            ? gameState.otherPlayers[seatIndex]["cards"]
+                            : [""]
+                        }
+                      />
+                    </div>
                   </>
                 );
-              } else {
+              } else if (seatIndex === -1) {
                 return (
-                  <div className="w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50"></div>
+                  <div
+                    className={`spot w-20 h-32 border-solid border-slate-100 rounded-md border-4 opacity-50`}
+                  ></div>
                 );
               }
             })}
@@ -318,11 +325,12 @@ function Blackjack() {
             <>
               <div
                 id="playerHand"
-                className="flex justify-center mt-14 relative scale-[0.7] flex-wrap w-[350px]"
+                className="flex justify-center mt-14 relative scale-75 flex-wrap w-[350px]"
               >
                 <h1
-                  className={`text-3xl text-primary absolute -top-8 -right-10 ${winner == "dealer" ? "line-through" : ""
-                    }`}
+                  className={`text-3xl text-primary absolute -top-8 -right-0 ${
+                    winner == "dealer" ? "line-through" : ""
+                  }`}
                 >
                   {player["cardSum"]}
                 </h1>
@@ -334,10 +342,12 @@ function Blackjack() {
 
                   const sendToAbove =
                     index > 2 ? `absolute sendToAbove -bottom-32` : "";
+                  let cardPath = `/src/assets/cards/card${suit}.png`;
                   return (
                     <div
                       key={index}
-                      className={`flex justify-center items-center text-6xl text-[#6D5C5C] bg-[url('/src/assets/cards/card.png')] bg-cover w-32 h-48 -ml-6 animate-getCard -rotate-2 ${sendToAbove}`}
+                      style={{ backgroundImage: `url(${cardPath})` }}
+                      className={`flex justify-center items-center text-6xl text-[#6D5C5C] bg-cover w-[7rem] h-[11rem] -ml-6 animate-getCard -rotate-2 ${sendToAbove}`}
                     >
                       {cardNo}
                     </div>
@@ -357,35 +367,39 @@ function Blackjack() {
                   </h1>
                 ) : null}
               </div>
-              <div className="bg-[url('/src/assets/cards/yourShadow.png')] bg-no-repeat w-60 h-10 mt-10 relative scale-[0.8] md:scale-100 -z-50"></div>
+              <div className="bg-[url('/src/assets/cards/yourShadow.png')] bg-cover blur-sm opacity-25 bg-no-repeat w-60 h-10 mt-10 relative scale-[0.8] md:scale-100 -z-50"></div>
             </>
           )}
 
           {/* Game Controls */}
           <div className="mt-14">
-            <div className="w-full h-[6px] rounded-full bg-shadow mb-4 relative">
-              {stopLoading && player["cards"].length > 2 ? (
-                <div className="absolute top-0 bottom-0 bg-primary animate-actionLoader"></div>
+            <div className="w-full h-[6px] rounded-full bg-loading opacity-50 mb-4 relative">
+              {stopLoading ? (
+                <div
+                  className={`absolute top-0 bottom-0 rounded-full bg-primary animate-[loading_linear_${timeRemaining - 1}s]`}
+                ></div>
               ) : (
                 ""
               )}
             </div>
 
             {gameState?.status === 0 ? (
-              <Controls
-                handleDecision={handleControlDecision}
-                type="BETTING"
-                canPlay={false}
-                yourSum={0}
-              />
+              <Controls handleDecision={handleControlDecision} type="BETTING" />
             ) : (
               <Controls
                 handleDecision={handleControlDecision}
                 type="PLAYING"
-                canPlay={false}
-                yourSum={0}
+                canPlay={
+                  gameState["currentPlayerTurn"] === player["seat"] && canPlay
+                }
               />
             )}
+          </div>
+
+          {/* Balance + Round Bet */}
+          <div className="absolute right-8 bottom-8 w-64 h-16 border-2 rounded-md flex justify-center flex-col p-4 opacity-50">
+            <h1 className="text-2xl">{"WAGER: " + player["bet"]}</h1>
+            <h1 className="text-2xl">{"BALANCE: " + player["balance"]}</h1>
           </div>
         </>
       )}
