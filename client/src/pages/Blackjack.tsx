@@ -35,7 +35,7 @@ function Blackjack() {
   const playerIdRef = useRef(playerID);
   const [player, setPlayer] = useState<Player>({
     bet: 0,
-    seat: -1,
+    seat: 4, // a seat above the allowable
     cards: [""],
     balance: 200,
     isBusted: false,
@@ -55,6 +55,7 @@ function Blackjack() {
   // timer for move
   const [action, setAction] = useState("STAND");
   const [canPlay, setCanPlay] = useState(true);
+  const [timeRemaining, setTimeRemaing] = useState(13)
 
   // loading switch
   const [stopLoading, setStopLoading] = useState(false);
@@ -75,7 +76,7 @@ function Blackjack() {
     } else {
       // handle player actions
       setCanPlay(false);
-      setAction(action);
+      setAction(choice);
     }
   };
 
@@ -90,6 +91,7 @@ function Blackjack() {
     const gameUpdate: Broadcast = data.data;
 
     console.log(gameUpdate);
+    setTimeRemaing(gameUpdate['timeRemaining'])
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -158,7 +160,7 @@ function Blackjack() {
           type: "BET",
           betAmount: player["bet"],
         });
-      }, 10000);
+      }, (timeRemaining - 1) * 1000);
     }
   }, [gameState["status"]]);
 
@@ -176,7 +178,7 @@ function Blackjack() {
           type: "TURN",
           action: action,
         });
-      }, 10000);
+      }, (timeRemaining - 1) * 1000);
     }
   }, [player["cardSum"], gameState["currentPlayerTurn"]]);
 
@@ -374,7 +376,7 @@ function Blackjack() {
             <div className="w-full h-[6px] rounded-full bg-loading opacity-50 mb-4 relative">
               {stopLoading ? (
                 <div
-                  className={`absolute top-0 bottom-0 rounded-full bg-primary animate-[loading_linear_10s]`}
+                  className={`absolute top-0 bottom-0 rounded-full bg-primary animate-[loading_linear_${timeRemaining - 1}s]`}
                 ></div>
               ) : (
                 ""

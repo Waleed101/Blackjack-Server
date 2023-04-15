@@ -248,7 +248,7 @@ class DealerThread : public Thread{
 		std::vector<Card> cards; 
 
 		int currentState = 0;
-		int timeRemaining = 10;
+		int timeRemaining = 15;
 
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
