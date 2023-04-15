@@ -210,6 +210,11 @@ void addPlayer(Player * newPlayer) {
 	Semaphore mutex("mutex");
 	mutex.Wait();
 	players.push_back(newPlayer);
+	
+	for(int i = 0; i < players.size(); i++) {
+		players[i]->seat = i;
+	}
+
 	mutex.Signal();
 }
 
@@ -222,8 +227,12 @@ void removePlayer(int idToRemove) {
 			break;
 		}
 	}
-
+	
 	numberOfPlayers--;
+	
+	for(int i = 0; i < players.size(); i++) {
+		players[i]->seat = i;
+	}
 
 	std::cout << "Removing player " << std::to_string(idToRemove) << std::endl;
 }
@@ -231,7 +240,7 @@ void removePlayer(int idToRemove) {
 void incrementNextPlayer() {
 	currentSeatPlaying++;
 }
-		
+
 class DealerThread : public Thread{
 	private:
 		int TIME_BETWEEN_REFRESHES;
@@ -239,7 +248,7 @@ class DealerThread : public Thread{
 		std::vector<Card> cards; 
 
 		int currentState = 0;
-		int timeRemaining = 10;
+		int timeRemaining = 15;
 
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
