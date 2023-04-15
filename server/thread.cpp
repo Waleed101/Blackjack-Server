@@ -9,6 +9,11 @@ Thread::Thread(int exitT/*=1000*/)
 	;
 }
 
+void Thread::Start()
+{
+   startEvent.Trigger();
+}
+
 Thread::~Thread()
 {
     Sync::FlexWait theEnd(1,&terminationEvent);
@@ -26,6 +31,7 @@ void ThreadFunction(void * me)
     // be safely cast back to Thread*
     Thread * theThread = (Thread*)me;
 
+    theThread->startEvent.Wait();
     try
     {
         theThread->ThreadMain(); // Call a derived ThreadMain.

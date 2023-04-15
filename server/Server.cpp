@@ -18,6 +18,7 @@ int currentSeatPlaying = 0;
 
 int numberOfPlayers = 0;
 int playerID = 0;
+const int MAX_PLAYERS = 4;
 
 struct Card
 {
@@ -252,7 +253,7 @@ class DealerThread : public Thread{
 
 	public:
 		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
-
+			Thread::Start();
 		}
 
 		void updateGameState() {
@@ -263,15 +264,18 @@ class DealerThread : public Thread{
 			gameState["currentPlayerTurn"] = currentSeatPlaying;
 			gameState["dealerSum"] = formatCardSum(cardSum(cards));
 			gameState["players"] = from(players);
+			std::cout << gameState.toStyledString() << std::endl;
 		}
 
 		virtual long ThreadMain(void) override{
-			Semaphore broadcast("broadcast", 0, true);
+			Semaphore broadcast("broadcast");
 			Semaphore mutex("mutex");
+			
 
 			while(true)
 			{
 				sleep(TIME_BETWEEN_REFRESHES);
+
 				timeRemaining -= TIME_BETWEEN_REFRESHES;
 
 				mutex.Wait();
@@ -344,10 +348,12 @@ class DealerThread : public Thread{
 					timeRemaining = 10;
 				}
 
+			
 				updateGameState();
 
 				mutex.Signal();
 
+			
 				for(int i = 0; i < numberOfPlayers; i++) {
 					broadcast.Signal();
 				}
@@ -365,6 +371,7 @@ class PlayerReader : public Thread
 		
 		PlayerReader(Socket & sock, int playerID, DealerThread &dealer):Thread(1000),socket(sock),dealer(dealer){
 			this->playerID = playerID;
+			Thread::Start();
 		}
 		
 		virtual long ThreadMain(void) override{
@@ -374,8 +381,6 @@ class PlayerReader : public Thread
 			Semaphore broadcast("broadcast");
 
 			Json::Value initalBroadcast(Json::objectValue);
-
-			dealer.updateGameState();
 
 			initalBroadcast["gameState"] = gameState;
 			initalBroadcast["playerID"] = this->playerID;
@@ -407,7 +412,9 @@ class PlayerWriter : public Thread
 		PlayerWriter(Socket &sock, int playerID, DealerThread &dealer)
 			: Thread(1000), socket(sock),
 			data(playerID, 0, 0, {}, 200, 1, false), dealer(dealer)
-		{}
+		{
+			Thread::Start();
+		}
 		
 		virtual long ThreadMain(void) override{
 			
@@ -458,7 +465,6 @@ class PlayerWriter : public Thread
 					}
 
 				std::cout << playerAction.toStyledString() << std::endl;
-				std::cout << data.bet << std::endl;
 				mutex.Signal();
 			}
 		}
@@ -473,8 +479,8 @@ int main(int argc, char* argv[])
 
 	DealerThread * dealer = new DealerThread();
 	
-    
 	Semaphore mutex("mutex", 1, true);
+	Semaphore broadcast("broadcast", 0, true);
 
 	server = new SocketServer(port);
 
@@ -485,11 +491,18 @@ int main(int argc, char* argv[])
 		try
 		{
 			Socket sock = server->Accept();
-			std::cout << "Got a new player" << std::endl;
-			playerID++;
-			numberOfPlayers++;
-			PlayerReader * reader = new PlayerReader(sock, playerID, *dealer);
-			PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
+
+			if (numberOfPlayers == MAX_PLAYERS) {
+				std::cout << "Player attempted to join a full table" << std::endl;
+				ByteArray gameFullResponse("0");
+				sock.Write(gameFullResponse);
+			} else {
+				std::cout << "Got a new player" << std::endl;
+				playerID++;
+				numberOfPlayers++;
+				PlayerReader * reader = new PlayerReader(sock, playerID, *dealer);
+				PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
+			}
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {
     			std::cout << "Server is terminated" << std::endl;

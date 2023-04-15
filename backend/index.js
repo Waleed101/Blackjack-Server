@@ -46,20 +46,26 @@ app.get("/connect", (req, res) => {
 
     resp.then((data) => {
         let [sock, initalData] = data
-        let procData = JSON.parse(initalData)
-        let playerID = procData["playerID"]
-        let gameState = procData["gameState"]
 
-        manageSocket(sock, playerID)
+        if (initalData == "0") {
+            console.log("Client denied in joining a full table")
+            res.send("Full table")
+        } else {
+            let procData = JSON.parse(initalData)
+            let playerID = procData["playerID"]
+            let gameState = procData["gameState"]
 
-        // data will hold the broadcast message
-        // thats the reference to the socket
-        sockets[playerID] = {sock: sock, data: gameState, timestamp: Date.now()}
-        const resp = {
-            id: playerID
+            manageSocket(sock, playerID)
+
+            // data will hold the broadcast message
+            // thats the reference to the socket
+            sockets[playerID] = { sock: sock, data: gameState, timestamp: Date.now() }
+            const resp = {
+                id: playerID
+            }
+            console.log(resp)
+            res.send(JSON.stringify(resp))
         }
-        console.log(resp)
-        res.send(JSON.stringify(resp))
     }).catch((err) => {
         console.log(err)
     })
@@ -77,8 +83,8 @@ app.post('/action/:id', (req, res) => {
 })
 
 app.listen(3000, () => {
-  console.log('Main API port 3000!');
-  console.log(`All calls will be routed to server @ ${SERVER_PORT}`)
+    console.log('Main API port 3000!');
+    console.log(`All calls will be routed to server @ ${SERVER_PORT}`)
 });
 
 // the player will send their requests at different times from when the Server will send via the socket
@@ -86,7 +92,7 @@ app.listen(3000, () => {
 // if it gets a request from the player, it sends the data it has saved
 
 function manageSocket(sock, id) {
-    
+
     sock.on('data', (data) => {
         if (sockets[id])
             sockets[id].data = data.toString()
