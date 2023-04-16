@@ -195,15 +195,43 @@ struct Game {
 	int timeRemaining;
 	int currentSeatPlaying;
 	Json::Value gameState;
-
-	int numberOfPlayers = 0;
-
 	Game(int id, int state, int timeRemaining, int currentSeat): gameID(id), currentState(state), 
 	timeRemaining(timeRemaining), currentSeatPlaying(currentSeat)
 	{}
 
 	int getNumberOfPlayers() {
-		return numberOfPlayers;
+		return players.size();
+	}
+
+	void addPlayer(Player * newPlayer) {
+		Semaphore mutex("mutex");
+
+		mutex.Wait();
+
+		this->players.push_back(newPlayer);
+		
+		for(int i = 0; i < this->getNumberOfPlayers(); i++) {
+			this->players[i]->seat = i;
+		}
+
+		mutex.Signal();
+	}
+
+	void removePlayer(int idToRemove) {
+		Semaphore mutex("mutex");
+
+		for (auto it = this->players.begin(); it != this->players.end(); ++it) {
+			if ((*it)->id == idToRemove) {
+				this->players.erase(it);
+				break;
+			}
+		}
+		
+		for(int i = 0; i < this->getNumberOfPlayers(); i++) {
+			this->players[i]->seat = i;
+		}
+
+		std::cout << "Removing player " << std::to_string(idToRemove) << " from Game#" << std::to_string(this->gameID) << std::endl;
 	}
 };
 
@@ -218,37 +246,6 @@ Json::Value from(std::vector<Player*> arr) {
 	}
 
 	return convertedArr;
-}
-
-void addPlayer(Player * newPlayer, int gameID) {
-	Semaphore mutex("mutex");
-	mutex.Wait();
-
-	std::cout << std::to_string(games[gameID]->numberOfPlayers) << std::endl;
-	games[gameID]->players.push_back(newPlayer);
-	
-	for(int i = 0; i < games[gameID]->getNumberOfPlayers(); i++) {
-		games[gameID]->players[i]->seat = i;
-	}
-
-	mutex.Signal();
-}
-
-void removePlayer(int idToRemove, int gameID) {
-	Semaphore mutex("mutex");
-
-	for (auto it = games[gameID]->players.begin(); it != games[gameID]->players.end(); ++it) {
-		if ((*it)->id == idToRemove) {
-			games[gameID]->players.erase(it);
-			break;
-		}
-	}
-	
-	for(int i = 0; i < games[gameID]->getNumberOfPlayers(); i++) {
-		games[gameID]->players[i]->seat = i;
-	}
-
-	std::cout << "Removing player " << std::to_string(idToRemove) << " from Game#" << std::to_string(games[gameID]->gameID) << std::endl;
 }
 
 class DealerThread : public Thread{
@@ -285,7 +282,7 @@ class DealerThread : public Thread{
 
 				games[idx]->timeRemaining -= TIME_BETWEEN_REFRESHES;
 
-				mutex.Wait();
+				// mutex.Wait();
 
 				if (games[idx]->timeRemaining <= 0) {	
 					if (games[idx]->currentState == 1) {
@@ -310,7 +307,7 @@ class DealerThread : public Thread{
 								if (players[i]->isActive == 0)
 									players[i]->cards = getCards(2, games[idx]->dealtCards);
 								else if (players[i]->isActive == 2)
-									removePlayer(players[i]->id, idx);
+									games[idx]->removePlayer(players[i]->id);
 							}
 
 							games[idx]->currentSeatPlaying = 0;
@@ -357,7 +354,7 @@ class DealerThread : public Thread{
 
 				updateGameState();
 
-				mutex.Signal();
+				// mutex.Signal();
 
 			
 				for(int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
@@ -428,7 +425,7 @@ class PlayerWriter : public Thread
 			Semaphore mutex("mutex");
 			
 			Player * data_ptr = &data;
-			addPlayer(data_ptr, idx);			
+			games[idx]->addPlayer(data_ptr);			
 
 			while (true)
 			{
@@ -480,7 +477,19 @@ int main(int argc, char* argv[])
 {
     std::cout << "-----C++ Server-----" << std::endl;
 
+	bool hasSet = false;
+
     int port = argc >= 2 ? std::stoi(argv[1]) : 2000;
+
+	while (!hasSet) {
+		try {
+			server = new SocketServer(port);
+			hasSet = true;
+		} catch (const std::string& e) {
+    		std::cerr << "Caught exception: " << e << std::endl;
+			port = rand() % (10000) + 1;
+		}
+	}
 
 	int curGameID = 1;
 
@@ -495,8 +504,6 @@ int main(int argc, char* argv[])
 	Semaphore mutex("mutex", 1, true);
 	Semaphore broadcast("broadcast", 0, true);
 
-	server = new SocketServer(port);
-
 	bool hasJoined = false;
 
 	std::cout << "Socket listening on " << port << std::endl;
@@ -510,25 +517,30 @@ int main(int argc, char* argv[])
 			hasJoined = false;
 
 			for(int i = 0; i < games.size(); i++) {
-				std::cout << "A" << std::endl;
 				if (games[i]->getNumberOfPlayers() < MAX_PLAYERS) {
-				std::cout << "B" << std::endl;
+					std::cout << std::to_string(i) << std::endl;
+					std::cout << std::to_string(games[i]->getNumberOfPlayers()) << std::endl;
 					gameID = i;
 					hasJoined = true;
-				std::cout << "C" << std::endl;
 					break;
 				}
 			}
 
 			if (!hasJoined) {
-				std::cout << "All games were full. Creating a new game..." << std::endl;
-				games.push_back(new Game(curGameID++, 0, 10, 0));
+				std::cout << "All games were full. Creating a new game";
+				Game* newGame = new Game(curGameID++, 0, 10, 0);
+				games.push_back(newGame);
+
 				gameID = curGameID - 1;
+				while(games[gameID] == nullptr) {
+					std::cout << ".";
+				}
+
+				std::cout << "" << std::endl;
 				DealerThread * dealer = new DealerThread(gameID);
 				dealers.push_back(dealer);
 			}
 
-				std::cout << "D" << std::endl;
 			playerID++;
 			PlayerReader * reader = new PlayerReader(sock, playerID, gameID);
 			PlayerWriter * writer = new PlayerWriter(sock, playerID, gameID);
