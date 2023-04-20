@@ -3,6 +3,7 @@
 #include "Semaphore.h"
 #include <stdlib.h>
 #include <time.h>
+#include <tuple>
 #include <list>
 #include <vector>
 #include <algorithm>
@@ -14,6 +15,7 @@ SocketServer *server;
 
 int playerID = 0;
 const int MAX_PLAYERS = 4;
+bool isServerActive = true;
 
 struct Card
 {
@@ -437,7 +439,7 @@ class PlayerWriter : public Thread
 
 			while (true)
 			{
-				ByteArray *buffer = new ByteArray();
+				ByteArray * buffer = new ByteArray();
 				if (socket.Read(*buffer) == 0)
 				{
 					ByteArray * buffer = new ByteArray();
@@ -481,33 +483,43 @@ class PlayerWriter : public Thread
 	}
 };
 
+class ServerTerminationInput : public Thread
+{
+	public:
+		std::string input;
+
+		ServerTerminationInput() : Thread(1000)
+		{
+			Thread::Start();
+		}
+
+		virtual long ThreadMain(void) override{
+			while (true) {
+				std::cin >> input;
+				if (input == "done") {
+					delete server;
+
+					std::cout << "Closing the server." << std::endl;
+
+					exit(0);
+				}
+			}
+		}
+};
+
 int main(int argc, char* argv[])
 {
     std::cout << "-----C++ Server-----" << std::endl;
 
-	bool hasSet = false;
-
     int port = argc >= 2 ? std::stoi(argv[1]) : 2000;
-
-	while (!hasSet) {
-		try {
-			server = new SocketServer(port);
-			hasSet = true;
-		} catch (const std::string& e) {
-    		std::cerr << "Caught exception: " << e << std::endl;
-			port = rand() % (10000) + 1;
-		}
-	}
+	server = new SocketServer(port);
 
 	int curGameID = 0;
-
-	std::vector<DealerThread*> dealers = {};
 
 	Game firstGame(curGameID++, 0, 10, 0);
 	games.push_back(&firstGame);
 
-	DealerThread * dealer = new DealerThread(0);
-	dealers.push_back(dealer);
+	DealerThread dealer(0);
 
 	Semaphore mutex("mutex", 1, true);
 	Semaphore broadcast("broadcast", 0, true);
@@ -515,6 +527,8 @@ int main(int argc, char* argv[])
 	bool hasJoined = false;
 
 	std::cout << "Socket listening on " << port << std::endl;
+
+	ServerTerminationInput * terminationInput = new ServerTerminationInput();
 
 	while (true)
 	{
@@ -535,8 +549,8 @@ int main(int argc, char* argv[])
 
 			if (!hasJoined) {
 				std::cout << "All games were full. Creating a new game";
-				Game* newGame = new Game(curGameID++, 0, 10, 0);
-				games.push_back(newGame);
+				Game newGame(curGameID++, 0, 10, 0);
+				games.push_back(&newGame);
 
 				gameID = curGameID - 1;
 				while(games[gameID] == nullptr) {
@@ -544,23 +558,18 @@ int main(int argc, char* argv[])
 				}
 
 				std::cout << "" << std::endl;
-				DealerThread * dealer = new DealerThread(gameID);
-				dealers.push_back(dealer);
+				DealerThread dealer(gameID);
 			}
 
 			playerID++;
 			std::cout << "GameID: " << gameID << std::endl;
-			PlayerReader * reader = new PlayerReader(sock, playerID, gameID);
-			PlayerWriter * writer = new PlayerWriter(sock, playerID, gameID);
-
+			PlayerReader reader(sock, playerID, gameID);
+			PlayerWriter writer(sock, playerID, gameID);
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {
     			std::cout << "Server is terminated" << std::endl;
     			break;
     		}
     	}
-    }
-    
-    delete(server);
-    
+    }    
 }
