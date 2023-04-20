@@ -308,6 +308,9 @@ class DealerThread : public Thread{
 			{
 				// Thread sleeps for a predefined amount in between game updates (usually a second)
 				sleep(TIME_BETWEEN_REFRESHES);
+
+				// Waits until thread can safely edit the games object
+				mutex.Wait();
 				
 				// Tiem remaining refers to the time left for the current state of play (i.e. betting, playing, etc.)
 				games[idx]->timeRemaining -= TIME_BETWEEN_REFRESHES;
