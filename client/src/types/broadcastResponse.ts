@@ -3,6 +3,7 @@ export type Broadcast = {
   players: {
     [key: number]: Player;
   };
+  gameID: number;
   dealerCards: Array<string>;
   dealerSum: string;
   hasDealerBusted: boolean;
@@ -32,6 +33,7 @@ export type Game = {
   timeRemaining: number;
   hasDealerBusted: boolean;
   currentPlayerTurn: number;
+  gameID: number;
   otherPlayers?: { [PLAYER_ID: number]: Player };
   msg?: {
     text: string;

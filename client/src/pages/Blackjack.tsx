@@ -5,11 +5,6 @@ import axios from "axios";
 
 //types
 import { Broadcast, Player, Game, Dealer } from "../types/broadcastResponse";
-import {
-  bettingState,
-  playingState,
-  tempGameState,
-} from "../mockRequests/response";
 
 // components
 import Controls from "../components/Controls";
@@ -28,10 +23,11 @@ function Blackjack() {
     timeRemaining: 0,
     hasDealerBusted: false,
     currentPlayerTurn: 4,
+    gameID: -1,
   });
 
   // player's state
-  const [playerID, setPlayerID] = useState(0);
+  const [playerID, setPlayerID] = useState(-1);
   const playerIdRef = useRef(playerID);
   const [player, setPlayer] = useState<Player>({
     bet: 0,
@@ -55,7 +51,7 @@ function Blackjack() {
   // timer for move
   const [action, setAction] = useState("STAND");
   const [canPlay, setCanPlay] = useState(true);
-  const [timeRemaining, setTimeRemaing] = useState(13)
+  const [timeRemaining, setTimeRemaing] = useState(13);
 
   // loading switch
   const [stopLoading, setStopLoading] = useState(false);
@@ -91,7 +87,8 @@ function Blackjack() {
     const gameUpdate: Broadcast = data.data;
 
     console.log(gameUpdate);
-    setTimeRemaing(gameUpdate['timeRemaining'])
+    // setTimeRemaing(gameUpdate["timeRemaining"]);
+    // setTimeRemaing(4);
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -125,6 +122,7 @@ function Blackjack() {
       timeRemaining: gameUpdate["timeRemaining"],
       hasDealerBusted: gameUpdate["hasDealerBusted"],
       currentPlayerTurn: gameUpdate["currentPlayerTurn"],
+      gameID: gameUpdate["gameID"],
     };
 
     if (Object.keys(otherPlayers).length > 0) {
@@ -153,9 +151,7 @@ function Blackjack() {
       timer = setTimeout(async () => {
         setStopLoading(false);
         setCanPlay(true);
-        console.log("sending bet request");
         // make the call at the end of the turn
-        console.log(`${URL}/action/${playerIdRef.current}`);
         await axios.post(URL + `/action/${playerIdRef.current}`, {
           type: "BET",
           betAmount: player["bet"],
@@ -194,6 +190,9 @@ function Blackjack() {
         <div>connecting to the table</div>
       ) : (
         <>
+          <div className="absolute left-2 top-2 opacity-25">
+            Table: {gameState["gameID"]}
+          </div>
           {/* is game in betting state */}
           {gameState["status"] === 0 ? (
             <>
@@ -283,7 +282,7 @@ function Blackjack() {
                 return (
                   <>
                     {/* this is where the opponents hand is rendered it needs the styling  */}
-                    <div className={`spot`}>
+                    <div className={`spot`} key={index}>
                       {seatIndex === gameState["currentPlayerTurn"] ? (
                         <PingAnimation top={"top-4"} right={"right-[50%]"} />
                       ) : null}
@@ -376,7 +375,7 @@ function Blackjack() {
             <div className="w-full h-[6px] rounded-full bg-loading opacity-50 mb-4 relative">
               {stopLoading ? (
                 <div
-                  className={`absolute top-0 bottom-0 rounded-full bg-primary animate-[loading_linear_${timeRemaining - 1}s]`}
+                  className={`absolute top-0 bottom-0 rounded-full bg-primary animate-[loading_linear_10s]`}
                 ></div>
               ) : (
                 ""
