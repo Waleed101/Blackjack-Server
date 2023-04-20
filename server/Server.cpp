@@ -3,6 +3,7 @@
 #include "Semaphore.h"
 #include <stdlib.h>
 #include <time.h>
+#include <tuple>
 #include <list>
 #include <vector>
 #include <algorithm>
@@ -12,13 +13,9 @@ using namespace Sync;
 
 SocketServer *server;
 
-Json::Value gameState(Json::objectValue);
-
-int currentSeatPlaying = 0;
-
-int numberOfPlayers = 0;
 int playerID = 0;
 const int MAX_PLAYERS = 4;
+bool isServerActive = true;
 
 struct Card
 {
@@ -50,8 +47,6 @@ struct Card
 	}
 };
 
-std::vector<Card> dealtCards;
-
 int randomNum(int min, int max)
 {
 	return (rand() % (max - min + 1) + min);
@@ -69,7 +64,7 @@ Card getRandomCard()
 }
 
 // modify this method to change how cards are dealt
-std::vector<Card> getCards(int numberOfCards)
+std::vector<Card> getCards(int numberOfCards, std::vector<Card> dealtCards)
 {
 	std::vector<Card> cards;
 
@@ -193,8 +188,58 @@ struct Player {
 	}
 };
 
+struct Game {
+	int gameID;
+	std::vector<Player*> players;
+	std::vector<Card> dealtCards;
+	std::vector<Card> dealerCards;
+	int currentState;
+	int timeRemaining;
+	int currentSeatPlaying;
+	Json::Value gameState;
+	Game(int id, int state, int timeRemaining, int currentSeat): gameID(id), currentState(state), 
+	timeRemaining(timeRemaining), currentSeatPlaying(currentSeat)
+	{}
 
-std::vector<Player*> players;
+	int getNumberOfPlayers() {
+		return players.size();
+	}
+
+	void addPlayer(Player * newPlayer) {
+		Semaphore mutex("mutex");
+
+		mutex.Wait();
+
+		this->players.push_back(newPlayer);
+		
+		for(int i = 0; i < this->getNumberOfPlayers(); i++) {
+			this->players[i]->seat = i;
+		}
+
+		mutex.Signal();
+		std::cout << "Seat: " << this->players[0]->seat << std::endl;
+	}
+
+	void removePlayer(int idToRemove) {
+		Semaphore mutex("mutex");
+
+		for (auto it = this->players.begin(); it != this->players.end(); ++it) {
+			if ((*it)->id == idToRemove) {
+				this->players.erase(it);
+				break;
+			}
+		}
+		
+		for(int i = 0; i < this->getNumberOfPlayers(); i++) {
+			this->players[i]->seat = i;
+		}
+
+		std::cout << "Removing player " << std::to_string(idToRemove) << " from Game#" << std::to_string(this->gameID) << std::endl;
+	}
+};
+
+std::vector<Game*> games;
+
 
 Json::Value from(std::vector<Player*> arr) {
 	Json::Value convertedArr(Json::objectValue);
@@ -206,157 +251,125 @@ Json::Value from(std::vector<Player*> arr) {
 	return convertedArr;
 }
 
-
-void addPlayer(Player * newPlayer) {
-	Semaphore mutex("mutex");
-	mutex.Wait();
-	players.push_back(newPlayer);
-	
-	for(int i = 0; i < players.size(); i++) {
-		players[i]->seat = i;
-	}
-
-	mutex.Signal();
-}
-
-void removePlayer(int idToRemove) {
-	Semaphore mutex("mutex");
-
-	for (auto it = players.begin(); it != players.end(); ++it) {
-		if ((*it)->id == idToRemove) {
-			players.erase(it);
-			break;
-		}
-	}
-	
-	numberOfPlayers--;
-	
-	for(int i = 0; i < players.size(); i++) {
-		players[i]->seat = i;
-	}
-
-	std::cout << "Removing player " << std::to_string(idToRemove) << std::endl;
-}
-
-void incrementNextPlayer() {
-	currentSeatPlaying++;
-}
-
 class DealerThread : public Thread{
 	private:
 		int TIME_BETWEEN_REFRESHES;
-		
-		std::vector<Card> cards; 
-
-		int currentState = 0;
-		int timeRemaining = 15;
+		int idx;
+		//std::vector<Player*> players;
 
 	public:
-		DealerThread():Thread(1000),TIME_BETWEEN_REFRESHES(1){
+		DealerThread(int gameIdx):Thread(1000),TIME_BETWEEN_REFRESHES(1),idx(gameIdx) {
+			// players = games[idx]->players;
 			Thread::Start();
 		}
 
 		void updateGameState() {
-			gameState["dealerCards"] = from(cards);
-			gameState["hasDealerBusted"] = isBusted(cards);
-			gameState["status"] = currentState;
-			gameState["timeRemaining"] = timeRemaining;
-			gameState["currentPlayerTurn"] = currentSeatPlaying;
-			gameState["dealerSum"] = formatCardSum(cardSum(cards));
-			gameState["players"] = from(players);
-			std::cout << gameState.toStyledString() << std::endl;
+			games[idx]->gameState["gameID"] = games[idx]->gameID;
+			games[idx]->gameState["dealerCards"] = from(games[idx]->dealerCards);
+			games[idx]->gameState["hasDealerBusted"] = isBusted(games[idx]->dealerCards);
+			games[idx]->gameState["status"] = games[idx]->currentState;
+			games[idx]->gameState["timeRemaining"] = games[idx]->timeRemaining;
+			games[idx]->gameState["currentPlayerTurn"] = games[idx]->currentSeatPlaying;
+			games[idx]->gameState["dealerSum"] = formatCardSum(cardSum(games[idx]->dealerCards));
+			games[idx]->gameState["players"] = from(games[idx]->players);
+			std::cout << games[idx]->gameState.toStyledString() << std::endl;
 		}
 
 		virtual long ThreadMain(void) override{
 			Semaphore broadcast("broadcast");
 			Semaphore mutex("mutex");
-			
-
 			while(true)
 			{
+								std::cout << "Player size: " << games[idx]->players.size() << std::endl;
+
 				sleep(TIME_BETWEEN_REFRESHES);
+				
+				games[idx]->timeRemaining -= TIME_BETWEEN_REFRESHES;
 
-				timeRemaining -= TIME_BETWEEN_REFRESHES;
+				// mutex.Wait();
 
-				mutex.Wait();
-
-				if (timeRemaining <= 0) {	
-					if (currentState == 1) {
-						currentSeatPlaying++;
+				std::cout << "A" << std::endl;
+				if (games[idx]->timeRemaining <= 0) {	
+					if (games[idx]->currentState == 1) {
+						games[idx]->currentSeatPlaying++;
 					}
+				std::cout << "B" << std::endl;
 
-					if (currentState == 0) {
-						if (numberOfPlayers > 0) {
+					if (games[idx]->currentState == 0) {
+						if (games[idx]->getNumberOfPlayers() > 0) {
 
-							currentState = 1;
-							if (dealtCards.size() >= 156)
+							games[idx]->currentState = 1;
+							if (games[idx]->dealtCards.size() >= 156)
 							{
-								dealtCards.clear();
-							}
-							
-							cards = getCards(2);
-
-							for (int i = 0; i < players.size(); i++) {
-								if (players[i]->isActive == 1)
-									players[i]->isActive = 0;
-
-								if (players[i]->isActive == 0)
-									players[i]->cards = getCards(2);
-								else if (players[i]->isActive == 2)
-									removePlayer(players[i]->id);
+								games[idx]->dealtCards.clear();
 							}
 
-							currentSeatPlaying = 0;
+							games[idx]->dealerCards = getCards(2, games[idx]->dealtCards);
+							std::cout << games[idx]->players.size() << std::endl;
+							for (int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
+								std::cout << "C" + i << std::endl;
+								if (games[idx]->players[i]->isActive == 1)
+									games[idx]->players[i]->isActive = 0;
+
+								if (games[idx]->players[i]->isActive == 0)
+									games[idx]->players[i]->cards = getCards(2, games[idx]->dealtCards);
+								else if (games[idx]->players[i]->isActive == 2)
+									games[idx]->removePlayer(games[idx]->players[i]->id);
+							}
+							std::cout << "D" << std::endl;
+							games[idx]->currentSeatPlaying = 0;
 						} else {
-							if (currentSeatPlaying == numberOfPlayers) {
-								currentSeatPlaying = 1;
-								currentState = 0;
-								cards = {};
+							if (games[idx]->currentSeatPlaying == games[idx]->getNumberOfPlayers()) {
+								games[idx]->currentSeatPlaying = 1;
+								games[idx]->currentState = 0;
+								games[idx]->dealerCards = {};
 							} else {
-								currentSeatPlaying++;
+								games[idx]->currentSeatPlaying++;
 							}
 						}
-					
+									std::cout << "E" << std::endl;
+
 						// timeRemaining = 10;
 					}
-					else if (currentState == 1 && currentSeatPlaying > numberOfPlayers) {
-						bool hasDealerBusted = isBusted(cards);
-						for (int i = 0; i < players.size(); i++) {
-							bool hasPlayerBusted = isBusted(players[i]->cards);
-							if (!hasPlayerBusted && ((hasDealerBusted) || (getHigherTotal(players[i]->cards) > getHigherTotal(cards)))) { // winner
-								players[i]->hasWon = 1;
-								players[i]->balance += players[i]->bet * 2;
+					else if (games[idx]->currentState == 1 && games[idx]->currentSeatPlaying > games[idx]->getNumberOfPlayers()) {
+						bool hasDealerBusted = isBusted(games[idx]->dealerCards);
+						for (int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
+							bool hasPlayerBusted = isBusted(games[idx]->players[i]->cards);
+							if (!hasPlayerBusted && ((hasDealerBusted) || (getHigherTotal(games[idx]->players[i]->cards) > getHigherTotal(games[idx]->dealerCards)))) { // winner
+								games[idx]->players[i]->hasWon = 1;
+								games[idx]->players[i]->balance += games[idx]->players[i]->bet * 2;
 							}
-							else if(hasPlayerBusted || (!hasDealerBusted && (getHigherTotal(players[i]->cards) < getHigherTotal(cards)))) { // loser
-								players[i]->hasWon = 0;
-								players[i]->balance -= players[i]->bet;
+							else if(hasPlayerBusted || (!hasDealerBusted && (getHigherTotal(games[idx]->players[i]->cards) < getHigherTotal(games[idx]->dealerCards)))) { // loser
+								games[idx]->players[i]->hasWon = 0;
+								games[idx]->players[i]->balance -= games[idx]->players[i]->bet;
 							} else { // push
-								players[i]->hasWon = 2;
-								players[i]->balance += players[i]->bet;
+								games[idx]->players[i]->hasWon = 2;
+								games[idx]->players[i]->balance += games[idx]->players[i]->bet;
 							}
 						}
 
 						// timeRemaining = 5;
-						currentState = 2;
-					} else if (currentState == 2) {
-						currentSeatPlaying = 0;
-						currentState = 0;
-						cards = {};
+						games[idx]->currentState = 2;
+					} else if (games[idx]->currentState == 2) {
+						games[idx]->currentSeatPlaying = 0;
+						games[idx]->currentState = 0;
+						games[idx]->dealerCards = {};
 						// timeRemaining = 10;
 					}
+				std::cout << "F" << std::endl;
 
-					timeRemaining = 10;
+					games[idx]->timeRemaining = 10;
 				}
 
-			
 				updateGameState();
 
-				mutex.Signal();
+				// mutex.Signal();
 
 			
-				for(int i = 0; i < numberOfPlayers; i++) {
+				for(int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
 					broadcast.Signal();
 				}
+								std::cout << "G" << std::endl;
 			}
 		}
 };
@@ -365,11 +378,11 @@ class PlayerReader : public Thread
 {
 	private:
 		int playerID;
-		DealerThread &dealer;
+		int idx;
 	public:
 		Socket socket;
 		
-		PlayerReader(Socket & sock, int playerID, DealerThread &dealer):Thread(1000),socket(sock),dealer(dealer){
+		PlayerReader(Socket & sock, int playerID, int gameIdx):Thread(1000),socket(sock),idx(gameIdx){
 			this->playerID = playerID;
 			Thread::Start();
 		}
@@ -382,7 +395,7 @@ class PlayerReader : public Thread
 
 			Json::Value initalBroadcast(Json::objectValue);
 
-			initalBroadcast["gameState"] = gameState;
+			// initalBroadcast["gameState"] = gameState;
 			initalBroadcast["playerID"] = this->playerID;
 
 			ByteArray responseBuffer(initalBroadcast.toStyledString());
@@ -392,8 +405,8 @@ class PlayerReader : public Thread
 			{
 				broadcast.Wait();
 				std::cout << "Writing to socket..." << std::endl;
-				std::cout << gameState.toStyledString() << std::endl;
-				ByteArray responseBuffer(gameState.toStyledString());
+				std::cout << games[idx]->gameState.toStyledString() << std::endl;
+				ByteArray responseBuffer(games[idx]->gameState.toStyledString());
 				socket.Write(responseBuffer);
 			}		
 		}
@@ -403,36 +416,35 @@ class PlayerWriter : public Thread
 {
 	private:
 		int playerID;
-		DealerThread &dealer;
+		int idx;
 
 	public:
 		Socket socket;
 		Player data;
 
-		PlayerWriter(Socket &sock, int playerID, DealerThread &dealer)
-			: Thread(1000), socket(sock),
-			data(playerID, 0, 0, {}, 200, 1, false), dealer(dealer)
+		PlayerWriter(Socket &sock, int playerID, int gameIdx)
+			: Thread(1000), socket(sock),data(playerID, 0, 0, {}, 200, 1, false), idx(gameIdx)
 		{
 			Thread::Start();
 		}
 		
 		virtual long ThreadMain(void) override{
 			
-			std::cout << "A player writer thread has started." << std::endl;
+			std::cout << "A player writer thread has started on Game #" << std::to_string(games[idx]->gameID) << std::endl;
 			
 			Semaphore mutex("mutex");
 			
 			Player * data_ptr = &data;
-			addPlayer(data_ptr);			
+			games[idx]->addPlayer(data_ptr);			
 
 			while (true)
 			{
-				ByteArray *buffer = new ByteArray();
+				ByteArray * buffer = new ByteArray();
 				if (socket.Read(*buffer) == 0)
 				{
 					ByteArray * buffer = new ByteArray();
 					if (socket.Read(*buffer) == 0) {
-						std::cout << "Player-" << std::to_string(data.id) << " left the game." << std::endl;
+						std::cout << "Player-" << std::to_string(data.id) << " left Game #" << std::to_string(games[idx]->gameID) << std::endl;
 						data.isActive = 2;
 						break;
 					}
@@ -454,9 +466,9 @@ class PlayerWriter : public Thread
 							data.cards.push_back(getRandomCard());
 							
 							if (doneTurn(data.cards, 21))
-								incrementNextPlayer();
+								games[idx]->currentSeatPlaying++;
 						} else {
-							incrementNextPlayer();
+							games[idx]->currentSeatPlaying++;
 						}
 					} else {
 						int betAmn = playerAction["betAmount"].asInt();
@@ -471,46 +483,93 @@ class PlayerWriter : public Thread
 	}
 };
 
+class ServerTerminationInput : public Thread
+{
+	public:
+		std::string input;
+
+		ServerTerminationInput() : Thread(1000)
+		{
+			Thread::Start();
+		}
+
+		virtual long ThreadMain(void) override{
+			while (true) {
+				std::cin >> input;
+				if (input == "done") {
+					delete server;
+
+					std::cout << "Closing the server." << std::endl;
+
+					exit(0);
+				}
+			}
+		}
+};
+
 int main(int argc, char* argv[])
 {
     std::cout << "-----C++ Server-----" << std::endl;
 
     int port = argc >= 2 ? std::stoi(argv[1]) : 2000;
+	server = new SocketServer(port);
 
-	DealerThread * dealer = new DealerThread();
-	
+	int curGameID = 0;
+
+	Game firstGame(curGameID++, 0, 10, 0);
+	games.push_back(&firstGame);
+
+	DealerThread dealer(0);
+
 	Semaphore mutex("mutex", 1, true);
 	Semaphore broadcast("broadcast", 0, true);
 
-	server = new SocketServer(port);
+	bool hasJoined = false;
 
 	std::cout << "Socket listening on " << port << std::endl;
+
+	ServerTerminationInput * terminationInput = new ServerTerminationInput();
 
 	while (true)
 	{
 		try
 		{
 			Socket sock = server->Accept();
-
-			if (numberOfPlayers == MAX_PLAYERS) {
-				std::cout << "Player attempted to join a full table" << std::endl;
-				ByteArray gameFullResponse("0");
-				sock.Write(gameFullResponse);
-			} else {
-				std::cout << "Got a new player" << std::endl;
-				playerID++;
-				numberOfPlayers++;
-				PlayerReader * reader = new PlayerReader(sock, playerID, *dealer);
-				PlayerWriter * writer = new PlayerWriter(sock, playerID, *dealer);
+			int gameID;
+			hasJoined = false;
+			for(int i = 0; i < games.size(); i++) {
+				if (games[i]->getNumberOfPlayers() < MAX_PLAYERS) {
+					std::cout << std::to_string(i) << std::endl;
+					std::cout << std::to_string(games[i]->getNumberOfPlayers()) << std::endl;
+					gameID = i;
+					hasJoined = true;
+					break;
+				}
 			}
+
+			if (!hasJoined) {
+				std::cout << "All games were full. Creating a new game";
+				Game newGame(curGameID++, 0, 10, 0);
+				games.push_back(&newGame);
+
+				gameID = curGameID - 1;
+				while(games[gameID] == nullptr) {
+					std::cout << ".";
+				}
+
+				std::cout << "" << std::endl;
+				DealerThread dealer(gameID);
+			}
+
+			playerID++;
+			std::cout << "GameID: " << gameID << std::endl;
+			PlayerReader reader(sock, playerID, gameID);
+			PlayerWriter writer(sock, playerID, gameID);
     	} catch (std::string err) {
     		if (err == "Unexpected error in the server") {
     			std::cout << "Server is terminated" << std::endl;
     			break;
     		}
     	}
-    }
-    
-    delete(server);
-    
+    }    
 }
