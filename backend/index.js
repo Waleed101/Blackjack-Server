@@ -3,7 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
-const TIMEOUT = 20; // number of seconds before booting a player
+const TIMEOUT = 2000; // number of seconds before booting a player
 const SERVER_PORT = parseInt(process.argv[2] ?? 2000);
 
 const sockets = {}
