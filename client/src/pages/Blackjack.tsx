@@ -16,15 +16,17 @@ function Blackjack() {
   // is player connected to the server
   const [isConnected, setIsConnected] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasPolled, setHasPolled] = useState(false)
 
   // the game related state
   const [gameState, setGameState] = useState<Game>({
     status: 0,
-    timeRemaining: 0,
+    timeRemaining: -1,
     hasDealerBusted: false,
     currentPlayerTurn: 4,
     gameID: -1,
   });
+  const timeRemainingRef = useRef(gameState['timeRemaining']);
 
   // player's state
   const [playerID, setPlayerID] = useState(-1);
@@ -38,6 +40,8 @@ function Blackjack() {
     isActive: 0,
     cardSum: "0",
   });
+  const betRef = useRef(player['bet'])
+  betRef.current = player['bet']
 
   // dealer
   const [dealer, setDealer] = useState<Dealer>({
@@ -50,11 +54,12 @@ function Blackjack() {
 
   // timer for move
   const [action, setAction] = useState("STAND");
+  const actionRef = useRef(action)
+  actionRef.current = action
   const [canPlay, setCanPlay] = useState(true);
-  const [timeRemaining, setTimeRemaing] = useState(13);
 
   // loading switch
-  const [stopLoading, setStopLoading] = useState(false);
+  const [isInTimeout, setInTimeout] = useState(false);
 
   // timeoutFunction
   let timer: NodeJS.Timer;
@@ -79,16 +84,14 @@ function Blackjack() {
   // server polling for game updates
 
   useInterval(async () => {
-    if (!isConnected || playerID === 0) {
+    if (!isConnected || playerID === -1) {
       return;
     }
 
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
 
-    console.log(gameUpdate);
-    // setTimeRemaing(gameUpdate["timeRemaining"]);
-    // setTimeRemaing(4);
+    timeRemainingRef.current = gameUpdate['timeRemaining']
 
     // search through players an assign seats
     const otherPlayers: { [key: number]: Player } = {};
@@ -134,47 +137,51 @@ function Blackjack() {
     setSeats(tempSeats);
 
     setIsLoaded(true);
+
+    
+    if (!hasPolled){
+      setHasPolled(true)
+    }
   }, POLL_REFRESH_INTERVAL);
 
-  // connect to game, fetch table id + table state
+  // connect to game, fetch player id
   const initialConnection = async () => {
     const connectionData = await axios.get(URL + "/connect");
     console.log(connectionData.data);
     playerIdRef.current = connectionData.data.id;
     setPlayerID(connectionData.data.id);
-    // setGameState(connectionData.data.gameState);
   };
 
   useEffect(() => {
-    if (gameState["status"] === 0) {
-      setStopLoading(true);
+    if (gameState["status"] === 0 && !isInTimeout && hasPolled && timeRemainingRef.current > 1) {
+      setInTimeout(true);
       timer = setTimeout(async () => {
-        setStopLoading(false);
+        setInTimeout(false);
         setCanPlay(true);
         // make the call at the end of the turn
         await axios.post(URL + `/action/${playerIdRef.current}`, {
           type: "BET",
-          betAmount: player["bet"],
+          betAmount: betRef.current,
         });
-      }, (timeRemaining - 1) * 1000);
+      }, (timeRemainingRef.current - 1) * 1000);
     }
-  }, [gameState["status"]]);
+  }, [gameState["status"], hasPolled, gameState['timeRemaining']]);
 
   // controls the timer during playing state
   useEffect(() => {
-    if (gameState["currentPlayerTurn"] === playerID) {
+    if (gameState["currentPlayerTurn"] === playerID && !isInTimeout && timeRemainingRef.current > 1) {
       // start the timer and wait till it finishes to set next actions
-      setStopLoading(true);
+      setInTimeout(true);
       timer = setTimeout(async () => {
-        setStopLoading(false);
+        setInTimeout(false);
         setCanPlay(true); // allow player to hit/stand again after timer
 
         // make the call at the end of the turn
         await axios.post(URL + `/action/${playerID}`, {
           type: "TURN",
-          action: action,
+          action: actionRef.current,
         });
-      }, (timeRemaining - 1) * 1000);
+      }, (timeRemainingRef.current - 1) * 1000);
     }
   }, [player["cardSum"], gameState["currentPlayerTurn"]]);
 
@@ -190,8 +197,9 @@ function Blackjack() {
         <div>connecting to the table</div>
       ) : (
         <>
-          <div className="absolute left-2 top-2 opacity-25">
-            Table: {gameState["gameID"]}
+          <div className="absolute left-2 top-2 opacity-25 text-2xl">
+            Table: {gameState["gameID"]} <br></br>
+            Time Remaining: {gameState['timeRemaining']}
           </div>
           {/* is game in betting state */}
           {gameState["status"] === 0 ? (
@@ -373,13 +381,13 @@ function Blackjack() {
           {/* Game Controls */}
           <div className="mt-14">
             <div className="w-full h-[6px] rounded-full bg-loading opacity-50 mb-4 relative">
-              {stopLoading ? (
+              {/* {stopLoading ? (
                 <div
                   className={`absolute top-0 bottom-0 rounded-full bg-primary animate-[loading_linear_10s]`}
                 ></div>
               ) : (
                 ""
-              )}
+              )} */}
             </div>
 
             {gameState?.status === 0 ? (
