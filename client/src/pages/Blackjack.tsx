@@ -89,8 +89,10 @@ function Blackjack() {
       return;
     }
 
+    console.log(`${URL}/update/${playerID}`)
     const data = await axios.get(`${URL}/update/${playerID}`);
     const gameUpdate: Broadcast = data.data;
+    console.log(gameUpdate)
 
     timeRemainingRef.current = gameUpdate['timeRemaining']
 
@@ -113,7 +115,6 @@ function Blackjack() {
     });
 
     // update player states
-    console.log(gameUpdate["players"])
     const playerRef = gameUpdate["players"][playerID];
     if (gameUpdate["status"] === 0) {
       playerRef["balance"] = player["balance"];

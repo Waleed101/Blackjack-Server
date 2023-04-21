@@ -3,7 +3,7 @@ import express from 'express';
 import net from 'net';
 import bodyParser from 'body-parser'
 
-const TIMEOUT = 2000; // number of seconds before booting a player
+const TIMEOUT = 20; // number of seconds before booting a player
 const SERVER_PORT = parseInt(process.argv[2] ?? 2000);
 
 const sockets = {}
@@ -74,10 +74,10 @@ app.get("/connect", (req, res) => {
 });
 
 app.get('/update/:id', (req, res) => {
-    if(sockets[req.params.id].data) {
+    if(sockets[req.params.id]?.data) {
         console.log("Good data.")
     } else {
-        console.log(sockets[req.params.id].data)
+        console.log("Bad Data")
     }
     sockets[req.params.id].timestamp = Date.now()
     res.send(sockets[req.params.id]?.data ?? {})
@@ -101,8 +101,6 @@ app.listen(3000, () => {
 function manageSocket(sock, id) {
 
     sock.on('data', (data) => {
-        console.log("Got new data.")
-        console.log(data.toString())
         if (sockets[id])
             sockets[id].data = data.toString()
     })
