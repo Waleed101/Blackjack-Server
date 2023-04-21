@@ -299,7 +299,6 @@ class DealerThread : public Thread{
 			games[idx]->gameState["currentPlayerTurn"] = games[idx]->currentSeatPlaying;
 			games[idx]->gameState["dealerSum"] = formatCardSum(cardSum(games[idx]->dealerCards));
 			games[idx]->gameState["players"] = from(games[idx]->players);
-			std::cout << games[idx]->gameState.toStyledString() << std::endl;
 		}
 
 		virtual long ThreadMain(void) override{
@@ -309,9 +308,6 @@ class DealerThread : public Thread{
 			{
 				// Thread sleeps for a predefined amount in between game updates (usually a second)
 				sleep(TIME_BETWEEN_REFRESHES);
-
-				// Waits until thread can safely edit the games object
-				mutex.Wait();
 				
 				// Tiem remaining refers to the time left for the current state of play (i.e. betting, playing, etc.)
 				games[idx]->timeRemaining -= TIME_BETWEEN_REFRESHES;
@@ -340,7 +336,6 @@ class DealerThread : public Thread{
 
 							// Activate all necessary players and remove players that have been de-activated
 							for (int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
-								std::cout << "C" + i << std::endl;
 								if (games[idx]->players[i]->isActive == 1)
 									games[idx]->players[i]->isActive = 0;
 
@@ -465,21 +460,18 @@ class PlayerWriter : public Thread
 			
 			Player * data_ptr = &data;
 			games[idx]->addPlayer(data_ptr);			
-
 			while (true)
 			{
 				ByteArray * buffer = new ByteArray();
 				if (socket.Read(*buffer) == 0)
 				{
-					ByteArray * buffer = new ByteArray();
-					if (socket.Read(*buffer) == 0) {
-						std::cout << "Player-" << std::to_string(data.id) << " left Game #" << std::to_string(games[idx]->gameID) << std::endl;
-						data.isActive = 2;
-						break;
-					}
-
+	
+					std::cout << "Player-" << std::to_string(data.id) << " left Game #" << std::to_string(games[idx]->gameID) << std::endl;
+					data.isActive = 2;
+					break;
+					
+				}
 				mutex.Wait();
-
 				// // Modify the gameState has needed
 
 				std::string req = (*buffer).ToString();
@@ -510,12 +502,10 @@ class PlayerWriter : public Thread
 						data.bet = betAmn;
 					}
 
-				std::cout << playerAction.toStyledString() << std::endl;
 				mutex.Signal();
 			}
 		}
-	}
-};
+	};
 
 
 // This thread is responsible for listening to input from the CLI of the server for graceful terminaiton
@@ -590,8 +580,8 @@ int main(int argc, char* argv[])
 			// If all games are full, new game/transaction is created
 			if (!hasJoined) {
 				std::cout << "All games were full. Creating a new game";
-				Game newGame(curGameID++, 0, 10, 0);
-				games.push_back(&newGame);
+				Game * newGame = new Game(curGameID++, 0, 10, 0);
+				games.push_back(newGame);
 
 				gameID = curGameID - 1;
 				while(games[gameID] == nullptr) {

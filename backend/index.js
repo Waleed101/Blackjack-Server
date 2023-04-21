@@ -60,6 +60,8 @@ app.get("/connect", (req, res) => {
             // data will hold the broadcast message
             // thats the reference to the socket
             sockets[playerID] = { sock: sock, data: gameState, timestamp: Date.now() }
+            console.log(playerID)
+            console.log(sockets)
             const resp = {
                 id: playerID
             }
