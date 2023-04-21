@@ -179,12 +179,13 @@ struct Player {
     std::vector<Card> cards;
     int balance;
     int isActive;
+	bool isDoneTurn;
     int hasWon;
     
     Player(int p_id, int p_seat, int p_bet, std::vector<Card> p_cards, 
 			int p_balance, int p_isActive, bool p_hasWon)
         : id(p_id), seat(p_seat), bet(p_bet), cards(p_cards),
-          balance(p_balance), isActive(p_isActive), hasWon(p_hasWon)
+          balance(p_balance), isActive(p_isActive), hasWon(p_hasWon), isDoneTurn(false)
     {}
 
 	// Function to get the JSON version of the player data
@@ -215,6 +216,8 @@ struct Game {
 	int timeRemaining;
 	int currentSeatPlaying;
 	Json::Value gameState;
+
+
 	Game(int id, int state, int timeRemaining, int currentSeat): gameID(id), currentState(state), 
 	timeRemaining(timeRemaining), currentSeatPlaying(currentSeat)
 	{}
@@ -222,6 +225,16 @@ struct Game {
 	// Function to get the number of players
 	int getNumberOfPlayers() {
 		return players.size();
+	}
+
+	int getNumberOfActivePlayers() {
+		int numberOfPlayers = 0;
+
+		for(int i = 0; i < players.size(); i++) {
+			numberOfPlayers += players[i]->isActive == 0 ? 1 : 0;
+		}
+
+		return numberOfPlayers;
 	}
 
 	void updateSeats() {
@@ -246,7 +259,6 @@ struct Game {
 	}
 
 	void removePlayer(int idToRemove) {
-		Semaphore mutex("mutex");
 
 		// Find the player and remove them from the array
 		for (auto it = this->players.begin(); it != this->players.end(); ++it) {
@@ -313,12 +325,14 @@ class DealerThread : public Thread{
 				mutex.Wait();
 				
 				// Tiem remaining refers to the time left for the current state of play (i.e. betting, playing, etc.)
-				games[idx]->timeRemaining -= TIME_BETWEEN_REFRESHES;
+				games[idx]->timeRemaining -= games[idx]->getNumberOfPlayers() > 0 ? TIME_BETWEEN_REFRESHES : 0;
 
 				// Execut game state change if time ran out
-				if (games[idx]->timeRemaining <= 0) {	
+				bool shouldUpdateSeat = (games[idx]->currentState == 1 && games[idx]->currentSeatPlaying < games[idx]->getNumberOfActivePlayers() && games[idx]->players[games[idx]->currentSeatPlaying]->isDoneTurn);
+
+				if (games[idx]->timeRemaining <= 0 || shouldUpdateSeat) {	
 					// If game state is currently in play
-					if (games[idx]->currentState == 1) {
+					if (shouldUpdateSeat) {
 						// Increment to next player
 						games[idx]->currentSeatPlaying++;
 					}
@@ -350,14 +364,19 @@ class DealerThread : public Thread{
 							games[idx]->currentSeatPlaying = 0;
 						} else {
 							// If no players in game, reset game
-							games[idx]->currentSeatPlaying = 1;
+							games[idx]->currentSeatPlaying = 0;
 							games[idx]->currentState = 0;
 							games[idx]->dealerCards = {};							
 						}
 					}
 					// This branch executes once all players have played their turn
-					else if (games[idx]->currentState == 1 && games[idx]->currentSeatPlaying > games[idx]->getNumberOfPlayers()) {
+					else if (games[idx]->currentState == 1 && games[idx]->currentSeatPlaying >= games[idx]->getNumberOfPlayers()) {
+						while(!doneTurn(games[idx]->dealerCards, 17)) {
+							games[idx]->dealerCards.push_back(getRandomCard());
+						}
+
 						bool hasDealerBusted = isBusted(games[idx]->dealerCards);
+
 						for (int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
 							bool hasPlayerBusted = isBusted(games[idx]->players[i]->cards);
 
@@ -380,6 +399,12 @@ class DealerThread : public Thread{
 						games[idx]->currentSeatPlaying = 0;
 						games[idx]->currentState = 0;
 						games[idx]->dealerCards = {};
+
+						for(int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
+							games[idx]->players[i]->isDoneTurn = false;
+							games[idx]->players[i]->bet = 0;
+							games[idx]->players[i]->cards = {};							
+						}
 					}
 
 					games[idx]->timeRemaining = 10;
@@ -429,7 +454,7 @@ class PlayerReader : public Thread
 			while(true)
 			{
 				// Thread waits until the gamestate is ready to eb sent via the braodcast sempahore
-				broadcast.Wait();
+				sleep(1);
 				std::cout << "Writing to socket..." << std::endl;
 				std::cout << games[idx]->gameState.toStyledString() << std::endl;
 				ByteArray responseBuffer(games[idx]->gameState.toStyledString());
@@ -492,11 +517,10 @@ class PlayerWriter : public Thread
 							data.cards.push_back(getRandomCard());
 							
 							// If sum of player's cards is over 21, go ot next player
-							if (doneTurn(data.cards, 21))
-								games[idx]->currentSeatPlaying++;
+							data.isDoneTurn = doneTurn(data.cards, 21);
 						} else {
 							// If player stands, go to next player
-							games[idx]->currentSeatPlaying++;
+							data.isDoneTurn = true;
 						}
 					} else {
 						// If player indicates that they are betting, adjust bet amount
@@ -561,6 +585,8 @@ int main(int argc, char* argv[])
 	std::cout << "Socket listening on " << port << std::endl;
 
 	ServerTerminationInput * terminationInput = new ServerTerminationInput();
+
+	srand(time(0));
 
 	while (true)
 	{

@@ -20,6 +20,7 @@ enum BroadcastStatus {
   "BETTING",
   "PLAYING",
   "FINISH",
+  "SERVER_CLOSED"
 }
 
 enum MessageStatus {
@@ -51,6 +52,7 @@ export type Player = {
   isActive: number; // the marker for if the player is in the round
   isBusted: boolean;
   cardSum: string; //11/17
+  hasWon: number
 };
 
 export type Dealer = {
