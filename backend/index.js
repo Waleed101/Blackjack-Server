@@ -60,6 +60,8 @@ app.get("/connect", (req, res) => {
             // data will hold the broadcast message
             // thats the reference to the socket
             sockets[playerID] = { sock: sock, data: gameState, timestamp: Date.now() }
+            console.log(playerID)
+            console.log(sockets)
             const resp = {
                 id: playerID
             }
@@ -72,6 +74,11 @@ app.get("/connect", (req, res) => {
 });
 
 app.get('/update/:id', (req, res) => {
+    if(sockets[req.params.id].data) {
+        console.log("Good data.")
+    } else {
+        console.log(sockets[req.params.id].data)
+    }
     sockets[req.params.id].timestamp = Date.now()
     res.send(sockets[req.params.id]?.data ?? {})
 });
@@ -94,6 +101,8 @@ app.listen(3000, () => {
 function manageSocket(sock, id) {
 
     sock.on('data', (data) => {
+        console.log("Got new data.")
+        console.log(data.toString())
         if (sockets[id])
             sockets[id].data = data.toString()
     })
@@ -101,8 +110,8 @@ function manageSocket(sock, id) {
     sock.on('close', () => {
         console.log('Server has closed.');
         Object.keys(sockets).forEach(row => {
-            row.data = {
-                status: 4
+            sockets[row].data = {
+                status: 3
             }
         })
     })
