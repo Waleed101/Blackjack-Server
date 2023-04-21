@@ -434,6 +434,7 @@ class PlayerReader : public Thread
 		
 		PlayerReader(Socket & sock, int playerID, int gameIdx):Thread(1000),socket(sock),idx(gameIdx){
 			this->playerID = playerID;
+			this->idx = gameIdx;
 			Thread::Start();
 		}
 		
@@ -455,8 +456,8 @@ class PlayerReader : public Thread
 			{
 				// Thread waits until the gamestate is ready to eb sent via the braodcast sempahore
 				sleep(1);
-				std::cout << "Writing to socket..." << std::endl;
-				std::cout << games[idx]->gameState.toStyledString() << std::endl;
+				std::cout << "Writing to socket..." << std::to_string(idx) << std::endl;
+				// std::cout << games[idx]->gameState.toStyledString() << std::endl;
 				ByteArray responseBuffer(games[idx]->gameState.toStyledString());
 				socket.Write(responseBuffer);
 			}		
@@ -609,16 +610,16 @@ int main(int argc, char* argv[])
 			// If all games are full, new game/transaction is created
 			if (!hasJoined) {
 				std::cout << "All games were full. Creating a new game";
-				Game * newGame = new Game(curGameID++, 0, 10, 0);
-				games.push_back(newGame);
+				Game newGame(curGameID++, 0, 10, 0);
+				games.push_back(&newGame);
 
 				gameID = curGameID - 1;
 				while(games[gameID] == nullptr) {
 					std::cout << ".";
 				}
 
-				std::cout << "" << std::endl;
-				DealerThread dealer(gameID);
+				std::cout << "Test" << std::endl;
+				DealerThread * dealer = new DealerThread(gameID);
 			}
 
 			playerID++;
