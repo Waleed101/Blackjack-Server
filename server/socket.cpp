@@ -100,6 +100,10 @@ int Socket::Read(ByteArray & buffer)
     return received;
 }
 
+bool Socket::isOpen() {
+    return open;
+}
+
 void Socket::Close(void)
 {
     close(GetFD());
