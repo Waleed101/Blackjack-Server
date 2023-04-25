@@ -401,6 +401,9 @@ class DealerThread : public Thread{
 						games[idx]->dealerCards = {};
 
 						for(int i = 0; i < games[idx]->getNumberOfPlayers(); i++) {
+							if(games[idx]->players[i]->balance <= 0) {
+								games[idx]->removePlayer(i);
+							}
 							games[idx]->players[i]->isDoneTurn = false;
 							games[idx]->players[i]->bet = 0;
 							games[idx]->players[i]->cards = {};							
@@ -456,7 +459,10 @@ class PlayerReader : public Thread
 			{
 				// Thread waits until the gamestate is ready to eb sent via the braodcast sempahore
 				sleep(1);
-				std::cout << "Writing to socket..." << std::to_string(idx) << std::endl;
+				if(!socket.isOpen()) {
+					break;
+				}
+				// std::cout << "Writing to socket..." << std::to_string(idx) << std::endl;
 				// std::cout << games[idx]->gameState.toStyledString() << std::endl;
 				ByteArray responseBuffer(games[idx]->gameState.toStyledString());
 				socket.Write(responseBuffer);
@@ -497,6 +503,7 @@ class PlayerWriter : public Thread
 	
 					std::cout << "Player-" << std::to_string(data.id) << " left Game #" << std::to_string(games[idx]->gameID) << std::endl;
 					data.isActive = 2;
+
 					break;
 					
 				}
